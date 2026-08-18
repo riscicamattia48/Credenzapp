@@ -184,6 +184,7 @@
 <div class="sheet" id="sheet-move">
   <h3 id="move-title">Alimento</h3>
   <div id="move-actions">
+    <button class="secondary" id="btn-move-rename" style="width:100%;margin-bottom:8px;">Rinomina</button>
     <button class="secondary" id="btn-move-frigo" style="width:100%;margin-bottom:8px;">Sposta in Frigo</button>
     <button class="secondary" id="btn-move-other" style="width:100%;margin-bottom:8px;">Sposta in altra sezione</button>
     <button class="danger" id="btn-move-delete">Rimuovi alimento</button>
@@ -198,6 +199,16 @@
     <div class="btnrow">
       <button class="secondary" id="btn-move-frigo-back">Indietro</button>
       <button class="primary" id="btn-move-frigo-confirm">Conferma</button>
+    </div>
+  </div>
+  <div id="move-rename-step" style="display:none;">
+    <div class="field">
+      <label>Nuovo nome</label>
+      <input id="mv-name" type="text">
+    </div>
+    <div class="btnrow">
+      <button class="secondary" id="btn-move-rename-back">Indietro</button>
+      <button class="primary" id="btn-move-rename-confirm">Conferma</button>
     </div>
   </div>
 </div>

@@ -133,8 +133,11 @@ function escapeHtml(s) {
 }
 
 // ---------- Sheet: aggiunta nuovo alimento ----------
-function toggleCatField(locValue) {
+function toggleFieldsByLoc(locValue) {
+  // La categoria (macronutriente) serve solo in Dispensa/Cantina.
   document.getElementById('field-cat').style.display = locValue === 'frigo' ? 'none' : 'block';
+  // La scadenza si gestisce solo in Frigo: in Dispensa/Cantina non si compila.
+  document.getElementById('field-exp').style.display = locValue === 'frigo' ? 'block' : 'none';
 }
 function openAddSheet() {
   document.getElementById('f-name').value = '';
@@ -143,7 +146,7 @@ function openAddSheet() {
   document.getElementById('f-qty').value = '1';
   document.getElementById('f-exp').value = '';
   document.getElementById('f-notes').value = '';
-  toggleCatField(state.loc);
+  toggleFieldsByLoc(state.loc);
   showSheet('sheet-add');
 }
 function saveAdd() {
@@ -160,7 +163,7 @@ function saveAdd() {
     loc,
     cat: document.getElementById('f-cat').value,
     qty: document.getElementById('f-qty').value.trim() || '1',
-    expiry: document.getElementById('f-exp').value,
+    expiry: loc === 'frigo' ? document.getElementById('f-exp').value : '',
     notes: document.getElementById('f-notes').value.trim(),
     added: Date.now(),
   });
@@ -221,7 +224,34 @@ function openMoveSheet(it) {
   document.getElementById('btn-move-other').textContent = `Sposta in ${LOC_LABEL[other]}`;
   document.getElementById('move-actions').style.display = 'block';
   document.getElementById('move-frigo-date').style.display = 'none';
+  document.getElementById('move-rename-step').style.display = 'none';
   showSheet('sheet-move');
+}
+function showRenameStep() {
+  const items = loadItems();
+  const it = items.find(x => x.id === state.moveItemId);
+  document.getElementById('mv-name').value = (it && it.name) || '';
+  document.getElementById('move-actions').style.display = 'none';
+  document.getElementById('move-rename-step').style.display = 'block';
+}
+function backFromRename() {
+  document.getElementById('move-actions').style.display = 'block';
+  document.getElementById('move-rename-step').style.display = 'none';
+}
+function confirmRename() {
+  const name = document.getElementById('mv-name').value.trim();
+  if (!name) {
+    showToast('Inserisci un nome');
+    return;
+  }
+  const items = loadItems();
+  const idx = items.findIndex(x => x.id === state.moveItemId);
+  if (idx >= 0) {
+    items[idx].name = name;
+    saveItems(items);
+  }
+  closeAllSheets();
+  render();
 }
 function moveToOtherPantry() {
   const items = loadItems();
@@ -429,7 +459,7 @@ document.getElementById('search').addEventListener('input', e => {
   state.search = e.target.value;
   render();
 });
-document.getElementById('f-loc').addEventListener('change', e => toggleCatField(e.target.value));
+document.getElementById('f-loc').addEventListener('change', e => toggleFieldsByLoc(e.target.value));
 
 document.getElementById('btn-add').addEventListener('click', openAddSheet);
 document.getElementById('btn-add-cancel').addEventListener('click', closeAllSheets);
@@ -441,10 +471,13 @@ document.getElementById('btn-frigo-delete').addEventListener('click', deleteFrig
 
 document.getElementById('btn-move-frigo').addEventListener('click', showMoveToFrigoStep);
 document.getElementById('btn-move-other').addEventListener('click', moveToOtherPantry);
+document.getElementById('btn-move-rename').addEventListener('click', showRenameStep);
 document.getElementById('btn-move-delete').addEventListener('click', deleteFromMove);
 document.getElementById('btn-move-cancel').addEventListener('click', closeAllSheets);
 document.getElementById('btn-move-frigo-back').addEventListener('click', backFromMoveToFrigo);
 document.getElementById('btn-move-frigo-confirm').addEventListener('click', confirmMoveToFrigo);
+document.getElementById('btn-move-rename-back').addEventListener('click', backFromRename);
+document.getElementById('btn-move-rename-confirm').addEventListener('click', confirmRename);
 
 document.getElementById('backdrop').addEventListener('click', closeAllSheets);
 document.getElementById('btn-scan').addEventListener('click', openScanner);
