@@ -726,10 +726,17 @@ let html5QrCode = null;
 function openScanner() {
   document.getElementById('scanner').classList.add('show');
   html5QrCode = new Html5Qrcode('reader');
+  // Senza indicare l'aspect ratio del contenitore, la libreria a volte richiede
+  // alla fotocamera uno stream con proporzioni diverse dallo schermo del telefono:
+  // il video viene "letterboxato" (bande nere sopra/sotto) invece di riempire tutto.
+  // Indicando l'aspect ratio reale dell'area di scansione (verticale, tutto schermo)
+  // il video richiesto combacia con il contenitore e lo riempie interamente.
+  const reader = document.getElementById('reader');
+  const aspectRatio = reader.clientHeight / reader.clientWidth;
   html5QrCode
     .start(
       { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 250, height: 150 } },
+      { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio },
       onScanSuccess,
       () => {}
     )
