@@ -28,6 +28,12 @@ function loadItems() {
 function saveItems(items) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
 }
+// Salva in locale e, se configurata, sincronizza anche verso il Gist GitHub
+// usato dallo Shortcut per la notifica delle 10.
+function persistItems(items) {
+  saveItems(items);
+  syncToGist(items);
+}
 function uid() {
   return 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
@@ -167,7 +173,7 @@ function saveAdd() {
     notes: document.getElementById('f-notes').value.trim(),
     added: Date.now(),
   });
-  saveItems(items);
+  persistItems(items);
   closeAllSheets();
   render();
   maybeNotify();
@@ -203,7 +209,7 @@ function saveFrigo() {
   if (idx >= 0) {
     items[idx].name = name;
     items[idx].expiry = document.getElementById('fr-exp').value;
-    saveItems(items);
+    persistItems(items);
   }
   closeAllSheets();
   render();
@@ -211,7 +217,7 @@ function saveFrigo() {
 }
 function deleteFrigo() {
   const items = loadItems().filter(x => x.id !== state.frigoItemId);
-  saveItems(items);
+  persistItems(items);
   closeAllSheets();
   render();
 }
@@ -219,26 +225,14 @@ function deleteFrigo() {
 // ---------- Sheet: sposta / rimuovi (Dispensa/Cantina) ----------
 function openMoveSheet(it) {
   state.moveItemId = it.id;
-  document.getElementById('move-title').textContent = it.name;
+  document.getElementById('mv-name').value = it.name;
   const other = PANTRY_LOCS.find(l => l !== it.loc);
   document.getElementById('btn-move-other').textContent = `Sposta in ${LOC_LABEL[other]}`;
-  document.getElementById('move-actions').style.display = 'block';
+  document.getElementById('move-main').style.display = 'block';
   document.getElementById('move-frigo-date').style.display = 'none';
-  document.getElementById('move-rename-step').style.display = 'none';
   showSheet('sheet-move');
 }
-function showRenameStep() {
-  const items = loadItems();
-  const it = items.find(x => x.id === state.moveItemId);
-  document.getElementById('mv-name').value = (it && it.name) || '';
-  document.getElementById('move-actions').style.display = 'none';
-  document.getElementById('move-rename-step').style.display = 'block';
-}
-function backFromRename() {
-  document.getElementById('move-actions').style.display = 'block';
-  document.getElementById('move-rename-step').style.display = 'none';
-}
-function confirmRename() {
+function saveMoveName() {
   const name = document.getElementById('mv-name').value.trim();
   if (!name) {
     showToast('Inserisci un nome');
@@ -248,18 +242,20 @@ function confirmRename() {
   const idx = items.findIndex(x => x.id === state.moveItemId);
   if (idx >= 0) {
     items[idx].name = name;
-    saveItems(items);
+    persistItems(items);
   }
   closeAllSheets();
   render();
 }
 function moveToOtherPantry() {
+  const name = document.getElementById('mv-name').value.trim();
   const items = loadItems();
   const idx = items.findIndex(x => x.id === state.moveItemId);
   if (idx >= 0) {
     const other = PANTRY_LOCS.find(l => l !== items[idx].loc);
     items[idx].loc = other;
-    saveItems(items);
+    if (name) items[idx].name = name;
+    persistItems(items);
   }
   closeAllSheets();
   render();
@@ -268,11 +264,11 @@ function showMoveToFrigoStep() {
   const items = loadItems();
   const it = items.find(x => x.id === state.moveItemId);
   document.getElementById('mv-exp').value = (it && it.expiry) || '';
-  document.getElementById('move-actions').style.display = 'none';
+  document.getElementById('move-main').style.display = 'none';
   document.getElementById('move-frigo-date').style.display = 'block';
 }
 function backFromMoveToFrigo() {
-  document.getElementById('move-actions').style.display = 'block';
+  document.getElementById('move-main').style.display = 'block';
   document.getElementById('move-frigo-date').style.display = 'none';
 }
 function confirmMoveToFrigo() {
@@ -281,12 +277,14 @@ function confirmMoveToFrigo() {
     showToast('Inserisci una data di scadenza');
     return;
   }
+  const name = document.getElementById('mv-name').value.trim();
   const items = loadItems();
   const idx = items.findIndex(x => x.id === state.moveItemId);
   if (idx >= 0) {
     items[idx].loc = 'frigo';
     items[idx].expiry = exp;
-    saveItems(items);
+    if (name) items[idx].name = name;
+    persistItems(items);
   }
   closeAllSheets();
   render();
@@ -294,7 +292,7 @@ function confirmMoveToFrigo() {
 }
 function deleteFromMove() {
   const items = loadItems().filter(x => x.id !== state.moveItemId);
-  saveItems(items);
+  persistItems(items);
   closeAllSheets();
   render();
 }
@@ -306,11 +304,105 @@ function showSheet(id) {
 }
 function closeAllSheets() {
   document.getElementById('backdrop').classList.remove('show');
-  ['sheet-add', 'sheet-frigo', 'sheet-move'].forEach(id => {
+  ['sheet-add', 'sheet-frigo', 'sheet-move', 'sheet-sync'].forEach(id => {
     document.getElementById(id).classList.remove('show');
   });
   state.frigoItemId = null;
   state.moveItemId = null;
+}
+
+// ---------- Sincronizzazione con GitHub Gist (per lo Shortcut delle 10) ----------
+const SYNC_TOKEN_KEY = 'dispensa.sync.token';
+const SYNC_GIST_KEY = 'dispensa.sync.gistId';
+const SYNC_OWNER_KEY = 'dispensa.sync.owner';
+const SYNC_URL_KEY = 'dispensa.sync.rawUrl';
+const GIST_FILENAME = 'dispensa.json';
+
+function getSyncToken() { return localStorage.getItem(SYNC_TOKEN_KEY) || ''; }
+
+async function syncToGist(items) {
+  const token = getSyncToken();
+  if (!token) return; // sincronizzazione non configurata, nessuna azione
+  const content = JSON.stringify(items, null, 2);
+  const headers = {
+    'Authorization': 'Bearer ' + token,
+    'Accept': 'application/vnd.github+json',
+    'Content-Type': 'application/json',
+  };
+  try {
+    let gistId = localStorage.getItem(SYNC_GIST_KEY);
+    let res, data;
+    if (!gistId) {
+      res = await fetch('https://api.github.com/gists', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          description: 'Dispensa - dati alimenti (generato automaticamente, non modificare a mano)',
+          public: false,
+          files: { [GIST_FILENAME]: { content } },
+        }),
+      });
+      if (!res.ok) throw new Error('creazione gist fallita: ' + res.status);
+      data = await res.json();
+      localStorage.setItem(SYNC_GIST_KEY, data.id);
+      localStorage.setItem(SYNC_OWNER_KEY, data.owner.login);
+    } else {
+      res = await fetch(`https://api.github.com/gists/${gistId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ files: { [GIST_FILENAME]: { content } } }),
+      });
+      if (!res.ok) throw new Error('aggiornamento gist fallito: ' + res.status);
+      data = await res.json();
+    }
+    const owner = localStorage.getItem(SYNC_OWNER_KEY) || data.owner.login;
+    // URL "stabile" (senza hash di revisione) che serve sempre l'ultima versione salvata
+    const stableUrl = `https://gist.githubusercontent.com/${owner}/${data.id}/raw/${GIST_FILENAME}`;
+    localStorage.setItem(SYNC_URL_KEY, stableUrl);
+    renderSyncStatus('ok');
+  } catch (e) {
+    console.error('Errore sincronizzazione', e);
+    renderSyncStatus('error');
+  }
+}
+
+function renderSyncStatus(status) {
+  const el = document.getElementById('sync-status');
+  const box = document.getElementById('sync-url-box');
+  if (!el) return;
+  const url = localStorage.getItem(SYNC_URL_KEY);
+  if (status === 'ok') {
+    el.textContent = '✅ Sincronizzato.';
+    if (url) {
+      document.getElementById('sync-url').value = url;
+      box.style.display = 'block';
+    }
+  } else if (status === 'error') {
+    el.textContent = '⚠️ Sincronizzazione non riuscita. Controlla il token e riprova.';
+  } else if (status === 'off') {
+    el.textContent = 'Sincronizzazione non attiva: incolla un token per iniziare.';
+    box.style.display = 'none';
+  }
+}
+function openSyncSheet() {
+  document.getElementById('sync-token').value = getSyncToken();
+  const url = localStorage.getItem(SYNC_URL_KEY);
+  if (getSyncToken()) {
+    renderSyncStatus(url ? 'ok' : 'off');
+  } else {
+    renderSyncStatus('off');
+  }
+  showSheet('sheet-sync');
+}
+function saveSyncToken() {
+  const token = document.getElementById('sync-token').value.trim();
+  if (!token) {
+    showToast('Inserisci un token');
+    return;
+  }
+  localStorage.setItem(SYNC_TOKEN_KEY, token);
+  showToast('Sincronizzazione in corso...');
+  syncToGist(loadItems());
 }
 
 // ---------- Toast ----------
@@ -379,7 +471,7 @@ document.getElementById('btn-import').addEventListener('click', () => {
       try {
         const parsed = JSON.parse(reader.result);
         if (!Array.isArray(parsed)) throw new Error('formato non valido');
-        saveItems(parsed);
+        persistItems(parsed);
         render();
         showToast('Importazione completata');
       } catch (e) {
@@ -471,17 +563,27 @@ document.getElementById('btn-frigo-delete').addEventListener('click', deleteFrig
 
 document.getElementById('btn-move-frigo').addEventListener('click', showMoveToFrigoStep);
 document.getElementById('btn-move-other').addEventListener('click', moveToOtherPantry);
-document.getElementById('btn-move-rename').addEventListener('click', showRenameStep);
+document.getElementById('btn-move-save').addEventListener('click', saveMoveName);
 document.getElementById('btn-move-delete').addEventListener('click', deleteFromMove);
 document.getElementById('btn-move-cancel').addEventListener('click', closeAllSheets);
 document.getElementById('btn-move-frigo-back').addEventListener('click', backFromMoveToFrigo);
 document.getElementById('btn-move-frigo-confirm').addEventListener('click', confirmMoveToFrigo);
-document.getElementById('btn-move-rename-back').addEventListener('click', backFromRename);
-document.getElementById('btn-move-rename-confirm').addEventListener('click', confirmRename);
 
 document.getElementById('backdrop').addEventListener('click', closeAllSheets);
 document.getElementById('btn-scan').addEventListener('click', openScanner);
 document.getElementById('btn-close-scan').addEventListener('click', closeScanner);
+
+document.getElementById('btn-sync').addEventListener('click', openSyncSheet);
+document.getElementById('btn-sync-close').addEventListener('click', closeAllSheets);
+document.getElementById('btn-sync-save').addEventListener('click', saveSyncToken);
+document.getElementById('btn-sync-copy').addEventListener('click', () => {
+  const url = document.getElementById('sync-url').value;
+  if (!url) return;
+  navigator.clipboard.writeText(url).then(
+    () => showToast('Indirizzo copiato'),
+    () => showToast('Copia non riuscita, selezionalo manualmente')
+  );
+});
 
 // ---------- PWA / Service worker ----------
 if ('serviceWorker' in navigator) {

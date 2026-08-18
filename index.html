@@ -106,6 +106,7 @@
       <button class="iconbtn" id="btn-export">⬇︎ Esporta</button>
       <button class="iconbtn" id="btn-import">⬆︎ Importa</button>
       <button class="iconbtn" id="btn-notify">🔔 Notifiche</button>
+      <button class="iconbtn" id="btn-sync">🔗 Sync</button>
     </div>
   </header>
   <div id="list"></div>
@@ -180,15 +181,21 @@
   <button class="danger" id="btn-frigo-delete">Rimuovi alimento</button>
 </div>
 
-<!-- Sposta / rimuovi alimento in Dispensa o Cantina -->
+<!-- Sposta / rinomina / rimuovi alimento in Dispensa o Cantina -->
 <div class="sheet" id="sheet-move">
-  <h3 id="move-title">Alimento</h3>
-  <div id="move-actions">
-    <button class="secondary" id="btn-move-rename" style="width:100%;margin-bottom:8px;">Rinomina</button>
+  <h3>Modifica alimento</h3>
+  <div id="move-main">
+    <div class="field">
+      <label>Nome</label>
+      <input id="mv-name" type="text">
+    </div>
     <button class="secondary" id="btn-move-frigo" style="width:100%;margin-bottom:8px;">Sposta in Frigo</button>
     <button class="secondary" id="btn-move-other" style="width:100%;margin-bottom:8px;">Sposta in altra sezione</button>
+    <div class="btnrow">
+      <button class="secondary" id="btn-move-cancel">Annulla</button>
+      <button class="primary" id="btn-move-save">Salva</button>
+    </div>
     <button class="danger" id="btn-move-delete">Rimuovi alimento</button>
-    <button class="secondary" id="btn-move-cancel" style="width:100%;margin-top:8px;">Annulla</button>
   </div>
   <div id="move-frigo-date" style="display:none;">
     <p style="color:var(--muted);font-size:13px;margin-top:0;">Per spostarlo in Frigo indica la scadenza:</p>
@@ -201,15 +208,30 @@
       <button class="primary" id="btn-move-frigo-confirm">Conferma</button>
     </div>
   </div>
-  <div id="move-rename-step" style="display:none;">
-    <div class="field">
-      <label>Nuovo nome</label>
-      <input id="mv-name" type="text">
-    </div>
-    <div class="btnrow">
-      <button class="secondary" id="btn-move-rename-back">Indietro</button>
-      <button class="primary" id="btn-move-rename-confirm">Conferma</button>
-    </div>
+</div>
+
+<!-- Sincronizzazione per lo Shortcut (notifiche automatiche) -->
+<div class="sheet" id="sheet-sync">
+  <h3>Sincronizzazione per lo Shortcut</h3>
+  <p style="color:var(--muted);font-size:13px;margin-top:0;">
+    Incolla qui un token GitHub (fine-grained, permesso "Gists: Read and write") per far sì che l'app
+    tenga aggiornata una copia dei dati leggibile dallo Shortcut delle 10.
+  </p>
+  <div class="field">
+    <label>Token GitHub</label>
+    <input id="sync-token" type="password" placeholder="github_pat_...">
+  </div>
+  <div class="btnrow">
+    <button class="secondary" id="btn-sync-close">Chiudi</button>
+    <button class="primary" id="btn-sync-save">Salva e sincronizza</button>
+  </div>
+  <div id="sync-status" style="margin-top:14px;font-size:13px;color:var(--muted);"></div>
+  <div id="sync-url-box" style="display:none;margin-top:10px;">
+    <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px;">
+      Indirizzo da incollare nello Shortcut ("Contenuto URL")
+    </label>
+    <input id="sync-url" type="text" readonly style="font-size:12px;">
+    <button class="secondary" id="btn-sync-copy" style="width:100%;margin-top:8px;">📋 Copia indirizzo</button>
   </div>
 </div>
 
