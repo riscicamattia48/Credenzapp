@@ -16,6 +16,31 @@ let state = {
   pendingSplit: null,
 };
 
+// ---------- Categorie compattate/espanse (solo Dispensa/Cantina) ----------
+// Ricordata tra le sessioni: di default tutte le categorie partono compattate.
+const EXPANDED_CATS_KEY = 'dispensa.expandedCats.v1';
+function loadExpandedCats() {
+  try {
+    const raw = localStorage.getItem(EXPANDED_CATS_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch (e) {
+    return new Set();
+  }
+}
+function saveExpandedCats(set) {
+  localStorage.setItem(EXPANDED_CATS_KEY, JSON.stringify([...set]));
+}
+let expandedCats = loadExpandedCats();
+function toggleCat(key) {
+  if (expandedCats.has(key)) {
+    expandedCats.delete(key);
+  } else {
+    expandedCats.add(key);
+  }
+  saveExpandedCats(expandedCats);
+  render();
+}
+
 // ---------- Storage ----------
 function loadItems() {
   try {
@@ -102,16 +127,26 @@ function render() {
     sorted.forEach(it => group.appendChild(renderItemRow(it)));
     list.appendChild(group);
   } else {
-    // Dispensa / Cantina: raggruppati per macronutriente
+    // Dispensa / Cantina: raggruppati per macronutriente, compattati di default.
+    // Mentre si cerca, le categorie con risultati si mostrano sempre espanse.
+    const searching = state.search.trim().length > 0;
     CATS.forEach(cat => {
       const catItems = filtered.filter(it => it.cat === cat).sort(sortByExpiry);
       if (catItems.length === 0) return;
+      const key = state.loc + ':' + cat;
+      const expanded = searching || expandedCats.has(key);
       const group = document.createElement('div');
       group.className = 'group';
       const h2 = document.createElement('h2');
-      h2.textContent = `${CAT_EMOJI[cat] || ''} ${cat} (${catItems.length})`;
+      h2.className = 'group-toggle';
+      h2.innerHTML = `<span class="chev">${expanded ? '▾' : '▸'}</span> ${CAT_EMOJI[cat] || ''} ${cat} (${catItems.length})`;
+      if (!searching) {
+        h2.addEventListener('click', () => toggleCat(key));
+      }
       group.appendChild(h2);
-      catItems.forEach(it => group.appendChild(renderItemRow(it)));
+      if (expanded) {
+        catItems.forEach(it => group.appendChild(renderItemRow(it)));
+      }
       list.appendChild(group);
     });
   }
