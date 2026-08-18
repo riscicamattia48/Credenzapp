@@ -1,14 +1,17 @@
-/* Dispensa - app locale per tracciare frigo e dispensa
+/* Dispensa - app locale per tracciare frigo, dispensa e cantina
    Dati salvati in localStorage, nessun server coinvolto. */
 
 const STORAGE_KEY = 'dispensa.items.v1';
 const CATS = ['Proteine', 'Carboidrati', 'Grassi', 'Frutta e Verdura', 'Altro'];
 const SOON_DAYS = 3; // entro quanti giorni un alimento è "in scadenza"
+const PANTRY_LOCS = ['dispensa', 'cantina']; // sezioni raggruppate per macronutriente
+const LOC_LABEL = { frigo: 'Frigo', dispensa: 'Dispensa', cantina: 'Cantina' };
 
 let state = {
   loc: 'frigo',
   search: '',
-  editingId: null,
+  frigoItemId: null,
+  moveItemId: null,
 };
 
 // ---------- Storage ----------
@@ -55,14 +58,12 @@ function expiryLabel(dateStr) {
 // ---------- Rendering ----------
 function render() {
   const items = loadItems();
-  const filtered = items.filter(it => {
-    if (it.loc !== state.loc) return false;
+  const locItems = items.filter(it => it.loc === state.loc);
+  const filtered = locItems.filter(it => {
     if (state.search && !it.name.toLowerCase().includes(state.search.toLowerCase())) return false;
     return true;
   });
 
-  // summary counts (computed on the whole location, not just search filter)
-  const locItems = items.filter(it => it.loc === state.loc);
   const expiredCount = locItems.filter(it => daysUntil(it.expiry) !== null && daysUntil(it.expiry) < 0).length;
   const soonCount = locItems.filter(it => {
     const d = daysUntil(it.expiry);
@@ -80,103 +81,205 @@ function render() {
     return;
   }
 
-  CATS.forEach(cat => {
-    const catItems = filtered
-      .filter(it => it.cat === cat)
-      .sort((a, b) => {
-        const da = a.expiry ? new Date(a.expiry) : new Date('9999-12-31');
-        const db = b.expiry ? new Date(b.expiry) : new Date('9999-12-31');
-        return da - db;
-      });
-    if (catItems.length === 0) return;
-
+  if (state.loc === 'frigo') {
+    // Frigo: nessun raggruppamento per categoria, solo ordine di scadenza
+    const sorted = [...filtered].sort(sortByExpiry);
     const group = document.createElement('div');
     group.className = 'group';
-    const h2 = document.createElement('h2');
-    h2.textContent = `${cat} (${catItems.length})`;
-    group.appendChild(h2);
-
-    catItems.forEach(it => {
-      const row = document.createElement('div');
-      row.className = 'item';
-      row.dataset.id = it.id;
-      row.innerHTML = `
-        <div class="dot ${expiryClass(it.expiry)}"></div>
-        <div class="info">
-          <div class="name">${escapeHtml(it.name)}</div>
-          <div class="meta">${expiryLabel(it.expiry)}${it.notes ? ' · ' + escapeHtml(it.notes) : ''}</div>
-        </div>
-        <div class="qty">${escapeHtml(it.qty || '')}</div>
-      `;
-      row.addEventListener('click', () => openSheet(it.id));
-      group.appendChild(row);
-    });
+    sorted.forEach(it => group.appendChild(renderItemRow(it)));
     list.appendChild(group);
-  });
+  } else {
+    // Dispensa / Cantina: raggruppati per macronutriente
+    CATS.forEach(cat => {
+      const catItems = filtered.filter(it => it.cat === cat).sort(sortByExpiry);
+      if (catItems.length === 0) return;
+      const group = document.createElement('div');
+      group.className = 'group';
+      const h2 = document.createElement('h2');
+      h2.textContent = `${cat} (${catItems.length})`;
+      group.appendChild(h2);
+      catItems.forEach(it => group.appendChild(renderItemRow(it)));
+      list.appendChild(group);
+    });
+  }
 
   if (list.innerHTML === '') {
     list.innerHTML = '<div class="empty">Nessun risultato.</div>';
   }
 }
+function sortByExpiry(a, b) {
+  const da = a.expiry ? new Date(a.expiry) : new Date('9999-12-31');
+  const db = b.expiry ? new Date(b.expiry) : new Date('9999-12-31');
+  return da - db;
+}
+function renderItemRow(it) {
+  const row = document.createElement('div');
+  row.className = 'item';
+  row.dataset.id = it.id;
+  row.innerHTML = `
+    <div class="dot ${expiryClass(it.expiry)}"></div>
+    <div class="info">
+      <div class="name">${escapeHtml(it.name)}</div>
+      <div class="meta">${expiryLabel(it.expiry)}${it.notes ? ' · ' + escapeHtml(it.notes) : ''}</div>
+    </div>
+    <div class="qty">${escapeHtml(it.qty || '')}</div>
+  `;
+  row.addEventListener('click', () => openItemSheet(it.id));
+  return row;
+}
 function escapeHtml(s) {
   return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// ---------- Sheet (add/edit form) ----------
-function openSheet(id) {
-  state.editingId = id || null;
-  const items = loadItems();
-  const it = id ? items.find(x => x.id === id) : null;
-
-  document.getElementById('sheet-title').textContent = it ? 'Modifica alimento' : 'Nuovo alimento';
-  document.getElementById('f-name').value = it ? it.name : '';
-  document.getElementById('f-loc').value = it ? it.loc : state.loc;
-  document.getElementById('f-cat').value = it ? it.cat : 'Altro';
-  document.getElementById('f-qty').value = it ? (it.qty || '') : '';
-  document.getElementById('f-exp').value = it ? (it.expiry || '') : '';
-  document.getElementById('f-notes').value = it ? (it.notes || '') : '';
-  document.getElementById('btn-delete').style.display = it ? 'block' : 'none';
-
-  document.getElementById('backdrop').classList.add('show');
-  document.getElementById('sheet').classList.add('show');
+// ---------- Sheet: aggiunta nuovo alimento ----------
+function toggleCatField(locValue) {
+  document.getElementById('field-cat').style.display = locValue === 'frigo' ? 'none' : 'block';
 }
-function closeSheet() {
-  document.getElementById('backdrop').classList.remove('show');
-  document.getElementById('sheet').classList.remove('show');
-  state.editingId = null;
+function openAddSheet() {
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-loc').value = state.loc;
+  document.getElementById('f-cat').value = 'Altro';
+  document.getElementById('f-qty').value = '1';
+  document.getElementById('f-exp').value = '';
+  document.getElementById('f-notes').value = '';
+  toggleCatField(state.loc);
+  showSheet('sheet-add');
 }
-function saveFromSheet() {
+function saveAdd() {
   const name = document.getElementById('f-name').value.trim();
   if (!name) {
     showToast('Inserisci un nome');
     return;
   }
+  const loc = document.getElementById('f-loc').value;
   const items = loadItems();
-  const data = {
+  items.push({
+    id: uid(),
     name,
-    loc: document.getElementById('f-loc').value,
+    loc,
     cat: document.getElementById('f-cat').value,
-    qty: document.getElementById('f-qty').value.trim(),
+    qty: document.getElementById('f-qty').value.trim() || '1',
     expiry: document.getElementById('f-exp').value,
     notes: document.getElementById('f-notes').value.trim(),
-  };
-  if (state.editingId) {
-    const idx = items.findIndex(x => x.id === state.editingId);
-    if (idx >= 0) items[idx] = { ...items[idx], ...data };
-  } else {
-    items.push({ id: uid(), ...data, added: Date.now() });
-  }
+    added: Date.now(),
+  });
   saveItems(items);
-  closeSheet();
+  closeAllSheets();
   render();
   maybeNotify();
 }
-function deleteCurrent() {
-  if (!state.editingId) return;
-  const items = loadItems().filter(x => x.id !== state.editingId);
-  saveItems(items);
-  closeSheet();
+
+// ---------- Apertura scheda alimento esistente ----------
+function openItemSheet(id) {
+  const items = loadItems();
+  const it = items.find(x => x.id === id);
+  if (!it) return;
+  if (it.loc === 'frigo') {
+    openFrigoSheet(it);
+  } else {
+    openMoveSheet(it);
+  }
+}
+
+// ---------- Sheet: modifica rapida Frigo ----------
+function openFrigoSheet(it) {
+  state.frigoItemId = it.id;
+  document.getElementById('fr-name').value = it.name;
+  document.getElementById('fr-exp').value = it.expiry || '';
+  showSheet('sheet-frigo');
+}
+function saveFrigo() {
+  const name = document.getElementById('fr-name').value.trim();
+  if (!name) {
+    showToast('Inserisci un nome');
+    return;
+  }
+  const items = loadItems();
+  const idx = items.findIndex(x => x.id === state.frigoItemId);
+  if (idx >= 0) {
+    items[idx].name = name;
+    items[idx].expiry = document.getElementById('fr-exp').value;
+    saveItems(items);
+  }
+  closeAllSheets();
   render();
+  maybeNotify();
+}
+function deleteFrigo() {
+  const items = loadItems().filter(x => x.id !== state.frigoItemId);
+  saveItems(items);
+  closeAllSheets();
+  render();
+}
+
+// ---------- Sheet: sposta / rimuovi (Dispensa/Cantina) ----------
+function openMoveSheet(it) {
+  state.moveItemId = it.id;
+  document.getElementById('move-title').textContent = it.name;
+  const other = PANTRY_LOCS.find(l => l !== it.loc);
+  document.getElementById('btn-move-other').textContent = `Sposta in ${LOC_LABEL[other]}`;
+  document.getElementById('move-actions').style.display = 'block';
+  document.getElementById('move-frigo-date').style.display = 'none';
+  showSheet('sheet-move');
+}
+function moveToOtherPantry() {
+  const items = loadItems();
+  const idx = items.findIndex(x => x.id === state.moveItemId);
+  if (idx >= 0) {
+    const other = PANTRY_LOCS.find(l => l !== items[idx].loc);
+    items[idx].loc = other;
+    saveItems(items);
+  }
+  closeAllSheets();
+  render();
+}
+function showMoveToFrigoStep() {
+  const items = loadItems();
+  const it = items.find(x => x.id === state.moveItemId);
+  document.getElementById('mv-exp').value = (it && it.expiry) || '';
+  document.getElementById('move-actions').style.display = 'none';
+  document.getElementById('move-frigo-date').style.display = 'block';
+}
+function backFromMoveToFrigo() {
+  document.getElementById('move-actions').style.display = 'block';
+  document.getElementById('move-frigo-date').style.display = 'none';
+}
+function confirmMoveToFrigo() {
+  const exp = document.getElementById('mv-exp').value;
+  if (!exp) {
+    showToast('Inserisci una data di scadenza');
+    return;
+  }
+  const items = loadItems();
+  const idx = items.findIndex(x => x.id === state.moveItemId);
+  if (idx >= 0) {
+    items[idx].loc = 'frigo';
+    items[idx].expiry = exp;
+    saveItems(items);
+  }
+  closeAllSheets();
+  render();
+  maybeNotify();
+}
+function deleteFromMove() {
+  const items = loadItems().filter(x => x.id !== state.moveItemId);
+  saveItems(items);
+  closeAllSheets();
+  render();
+}
+
+// ---------- Gestione sheet condivisa ----------
+function showSheet(id) {
+  document.getElementById('backdrop').classList.add('show');
+  document.getElementById(id).classList.add('show');
+}
+function closeAllSheets() {
+  document.getElementById('backdrop').classList.remove('show');
+  ['sheet-add', 'sheet-frigo', 'sheet-move'].forEach(id => {
+    document.getElementById(id).classList.remove('show');
+  });
+  state.frigoItemId = null;
+  state.moveItemId = null;
 }
 
 // ---------- Toast ----------
@@ -325,11 +428,24 @@ document.getElementById('search').addEventListener('input', e => {
   state.search = e.target.value;
   render();
 });
-document.getElementById('btn-add').addEventListener('click', () => openSheet(null));
-document.getElementById('btn-cancel').addEventListener('click', closeSheet);
-document.getElementById('backdrop').addEventListener('click', closeSheet);
-document.getElementById('btn-save').addEventListener('click', saveFromSheet);
-document.getElementById('btn-delete').addEventListener('click', deleteCurrent);
+document.getElementById('f-loc').addEventListener('change', e => toggleCatField(e.target.value));
+
+document.getElementById('btn-add').addEventListener('click', openAddSheet);
+document.getElementById('btn-add-cancel').addEventListener('click', closeAllSheets);
+document.getElementById('btn-add-save').addEventListener('click', saveAdd);
+
+document.getElementById('btn-frigo-cancel').addEventListener('click', closeAllSheets);
+document.getElementById('btn-frigo-save').addEventListener('click', saveFrigo);
+document.getElementById('btn-frigo-delete').addEventListener('click', deleteFrigo);
+
+document.getElementById('btn-move-frigo').addEventListener('click', showMoveToFrigoStep);
+document.getElementById('btn-move-other').addEventListener('click', moveToOtherPantry);
+document.getElementById('btn-move-delete').addEventListener('click', deleteFromMove);
+document.getElementById('btn-move-cancel').addEventListener('click', closeAllSheets);
+document.getElementById('btn-move-frigo-back').addEventListener('click', backFromMoveToFrigo);
+document.getElementById('btn-move-frigo-confirm').addEventListener('click', confirmMoveToFrigo);
+
+document.getElementById('backdrop').addEventListener('click', closeAllSheets);
 document.getElementById('btn-scan').addEventListener('click', openScanner);
 document.getElementById('btn-close-scan').addEventListener('click', closeScanner);
 

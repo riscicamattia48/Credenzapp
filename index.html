@@ -91,6 +91,7 @@
     <div class="tabs">
       <div class="tab active" data-loc="frigo">Frigo</div>
       <div class="tab" data-loc="dispensa">Dispensa</div>
+      <div class="tab" data-loc="cantina">Cantina</div>
     </div>
     <div class="searchbar">
       <input id="search" type="search" placeholder="Cerca alimento...">
@@ -112,8 +113,10 @@
 <button class="fab" id="btn-add">+</button>
 
 <div class="sheet-backdrop" id="backdrop"></div>
-<div class="sheet" id="sheet">
-  <h3 id="sheet-title">Nuovo alimento</h3>
+
+<!-- Aggiunta nuovo alimento -->
+<div class="sheet" id="sheet-add">
+  <h3>Nuovo alimento</h3>
   <button class="scanbtn" id="btn-scan">📷 Scansiona codice a barre</button>
   <div class="field">
     <label>Nome</label>
@@ -125,9 +128,10 @@
       <select id="f-loc">
         <option value="frigo">Frigo</option>
         <option value="dispensa">Dispensa</option>
+        <option value="cantina">Cantina</option>
       </select>
     </div>
-    <div class="field">
+    <div class="field" id="field-cat">
       <label>Categoria</label>
       <select id="f-cat">
         <option value="Proteine">Proteine</option>
@@ -141,9 +145,9 @@
   <div class="row2">
     <div class="field">
       <label>Quantità</label>
-      <input id="f-qty" type="text" placeholder="Es. 2 confezioni">
+      <input id="f-qty" type="text" placeholder="1">
     </div>
-    <div class="field">
+    <div class="field" id="field-exp">
       <label>Scadenza</label>
       <input id="f-exp" type="date">
     </div>
@@ -153,10 +157,49 @@
     <input id="f-notes" type="text" placeholder="Es. aperto il 12/08">
   </div>
   <div class="btnrow">
-    <button class="secondary" id="btn-cancel">Annulla</button>
-    <button class="primary" id="btn-save">Salva</button>
+    <button class="secondary" id="btn-add-cancel">Annulla</button>
+    <button class="primary" id="btn-add-save">Salva</button>
   </div>
-  <button class="danger" id="btn-delete" style="display:none;">Elimina alimento</button>
+</div>
+
+<!-- Modifica rapida alimento in Frigo -->
+<div class="sheet" id="sheet-frigo">
+  <h3>Modifica alimento</h3>
+  <div class="field">
+    <label>Nome</label>
+    <input id="fr-name" type="text">
+  </div>
+  <div class="field">
+    <label>Scadenza</label>
+    <input id="fr-exp" type="date">
+  </div>
+  <div class="btnrow">
+    <button class="secondary" id="btn-frigo-cancel">Annulla</button>
+    <button class="primary" id="btn-frigo-save">Salva</button>
+  </div>
+  <button class="danger" id="btn-frigo-delete">Rimuovi alimento</button>
+</div>
+
+<!-- Sposta / rimuovi alimento in Dispensa o Cantina -->
+<div class="sheet" id="sheet-move">
+  <h3 id="move-title">Alimento</h3>
+  <div id="move-actions">
+    <button class="secondary" id="btn-move-frigo" style="width:100%;margin-bottom:8px;">Sposta in Frigo</button>
+    <button class="secondary" id="btn-move-other" style="width:100%;margin-bottom:8px;">Sposta in altra sezione</button>
+    <button class="danger" id="btn-move-delete">Rimuovi alimento</button>
+    <button class="secondary" id="btn-move-cancel" style="width:100%;margin-top:8px;">Annulla</button>
+  </div>
+  <div id="move-frigo-date" style="display:none;">
+    <p style="color:var(--muted);font-size:13px;margin-top:0;">Per spostarlo in Frigo indica la scadenza:</p>
+    <div class="field">
+      <label>Scadenza</label>
+      <input id="mv-exp" type="date">
+    </div>
+    <div class="btnrow">
+      <button class="secondary" id="btn-move-frigo-back">Indietro</button>
+      <button class="primary" id="btn-move-frigo-confirm">Conferma</button>
+    </div>
+  </div>
 </div>
 
 <div id="scanner">
