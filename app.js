@@ -2,7 +2,8 @@
    Dati salvati in localStorage, nessun server coinvolto. */
 
 const STORAGE_KEY = 'dispensa.items.v1';
-const CATS = ['Proteine', 'Carboidrati', 'Grassi', 'Frutta e Verdura', 'Altro'];
+const CAT_EMOJI = { 'Proteine': '🥩', 'Carboidrati': '🍝', 'Grassi': '🫒', 'Altro': '🥫' };
+const CATS = Object.keys(CAT_EMOJI);
 const SOON_DAYS = 3; // entro quanti giorni un alimento è "in scadenza"
 const PANTRY_LOCS = ['dispensa', 'cantina']; // sezioni raggruppate per macronutriente
 const LOC_LABEL = { frigo: 'Frigo', dispensa: 'Dispensa', cantina: 'Cantina' };
@@ -96,7 +97,7 @@ function render() {
       const group = document.createElement('div');
       group.className = 'group';
       const h2 = document.createElement('h2');
-      h2.textContent = `${cat} (${catItems.length})`;
+      h2.textContent = `${CAT_EMOJI[cat] || ''} ${cat} (${catItems.length})`;
       group.appendChild(h2);
       catItems.forEach(it => group.appendChild(renderItemRow(it)));
       list.appendChild(group);
