@@ -154,7 +154,7 @@
   <div class="row2">
     <div class="field">
       <label>Quantità</label>
-      <input id="f-qty" type="text" placeholder="1">
+      <input id="f-qty" type="number" min="1" step="1" placeholder="1">
     </div>
     <div class="field" id="field-exp">
       <label>Scadenza</label>
@@ -215,6 +215,20 @@
       <button class="secondary" id="btn-move-frigo-back">Indietro</button>
       <button class="primary" id="btn-move-frigo-confirm">Conferma</button>
     </div>
+  </div>
+</div>
+
+<!-- Selezione quantità: quando un alimento ha più pezzi, chiede su quanti agire -->
+<div class="sheet" id="sheet-qty">
+  <h3 id="qty-title">Quanti pezzi?</h3>
+  <p id="qty-desc" style="color:var(--muted);font-size:13px;margin-top:0;"></p>
+  <div class="field">
+    <label>Pezzi</label>
+    <input id="qty-input" type="number" min="1" step="1">
+  </div>
+  <div class="btnrow">
+    <button class="secondary" id="btn-qty-cancel">Annulla</button>
+    <button class="primary" id="btn-qty-confirm">Conferma</button>
   </div>
 </div>
 

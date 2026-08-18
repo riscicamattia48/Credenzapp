@@ -13,6 +13,7 @@ let state = {
   search: '',
   frigoItemId: null,
   moveItemId: null,
+  pendingSplit: null,
 };
 
 // ---------- Storage ----------
@@ -36,6 +37,11 @@ function persistItems(items) {
 }
 function uid() {
   return 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+// Numero di pezzi di un alimento (sempre almeno 1, anche su dati vecchi/non numerici).
+function getTotalQty(it) {
+  const n = parseInt(it && it.qty, 10);
+  return Number.isFinite(n) && n > 0 ? n : 1;
 }
 
 // ---------- Date helpers ----------
@@ -163,12 +169,14 @@ function saveAdd() {
   }
   const loc = document.getElementById('f-loc').value;
   const items = loadItems();
+  const qtyRaw = parseInt(document.getElementById('f-qty').value, 10);
+  const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : 1;
   items.push({
     id: uid(),
     name,
     loc,
     cat: document.getElementById('f-cat').value,
-    qty: document.getElementById('f-qty').value.trim() || '1',
+    qty: String(qty),
     expiry: loc === 'frigo' ? document.getElementById('f-exp').value : '',
     notes: document.getElementById('f-notes').value.trim(),
     added: Date.now(),
@@ -203,19 +211,96 @@ function saveFrigo() {
     showToast('Inserisci un nome');
     return;
   }
+  const newExpiry = document.getElementById('fr-exp').value;
   const items = loadItems();
+  const it = items.find(x => x.id === state.frigoItemId);
+  if (!it) {
+    closeAllSheets();
+    render();
+    return;
+  }
+  const total = getTotalQty(it);
+  const expiryChanged = (it.expiry || '') !== (newExpiry || '');
+  if (total > 1 && expiryChanged) {
+    openQtySheet({
+      total,
+      title: 'Per quanti pezzi vale la nuova scadenza?',
+      desc: `"${it.name}" ha ${total} pezzi con la stessa scadenza. Indica per quanti aggiornarla: gli altri manterranno la scadenza originale e appariranno come voce separata.`,
+      onConfirm: (chosen) => {
+        const items2 = loadItems();
+        const idx = items2.findIndex(x => x.id === it.id);
+        if (idx >= 0) {
+          const cur = items2[idx];
+          const curTotal = getTotalQty(cur);
+          if (chosen >= curTotal) {
+            cur.name = name;
+            cur.expiry = newExpiry;
+          } else {
+            cur.name = name;
+            cur.qty = String(curTotal - chosen);
+            items2.push({
+              id: uid(),
+              name,
+              loc: 'frigo',
+              cat: cur.cat,
+              qty: String(chosen),
+              expiry: newExpiry,
+              notes: cur.notes,
+              added: Date.now(),
+            });
+          }
+          persistItems(items2);
+        }
+        closeAllSheets();
+        render();
+      },
+    });
+    return;
+  }
   const idx = items.findIndex(x => x.id === state.frigoItemId);
   if (idx >= 0) {
     items[idx].name = name;
-    items[idx].expiry = document.getElementById('fr-exp').value;
+    items[idx].expiry = newExpiry;
     persistItems(items);
   }
   closeAllSheets();
   render();
 }
 function deleteFrigo() {
-  const items = loadItems().filter(x => x.id !== state.frigoItemId);
-  persistItems(items);
+  const items = loadItems();
+  const it = items.find(x => x.id === state.frigoItemId);
+  if (!it) {
+    closeAllSheets();
+    render();
+    return;
+  }
+  const total = getTotalQty(it);
+  if (total > 1) {
+    openQtySheet({
+      total,
+      title: 'Quanti pezzi rimuovere?',
+      desc: `"${it.name}" ha ${total} pezzi. Indica quanti rimuoverne: gli altri resteranno in elenco.`,
+      onConfirm: (chosen) => {
+        const items2 = loadItems();
+        const idx = items2.findIndex(x => x.id === it.id);
+        if (idx >= 0) {
+          const cur = items2[idx];
+          const curTotal = getTotalQty(cur);
+          if (chosen >= curTotal) {
+            items2.splice(idx, 1);
+          } else {
+            cur.qty = String(curTotal - chosen);
+          }
+          persistItems(items2);
+        }
+        closeAllSheets();
+        render();
+      },
+    });
+    return;
+  }
+  const items2 = items.filter(x => x.id !== state.frigoItemId);
+  persistItems(items2);
   closeAllSheets();
   render();
 }
@@ -248,9 +333,51 @@ function saveMoveName() {
 function moveToOtherPantry() {
   const name = document.getElementById('mv-name').value.trim();
   const items = loadItems();
+  const it = items.find(x => x.id === state.moveItemId);
+  if (!it) {
+    closeAllSheets();
+    render();
+    return;
+  }
+  const other = PANTRY_LOCS.find(l => l !== it.loc);
+  const total = getTotalQty(it);
+  if (total > 1) {
+    openQtySheet({
+      total,
+      title: `Quanti pezzi spostare in ${LOC_LABEL[other]}?`,
+      desc: `"${it.name}" ha ${total} pezzi. Indica quanti spostare: gli altri resteranno qui.`,
+      onConfirm: (chosen) => {
+        const items2 = loadItems();
+        const idx = items2.findIndex(x => x.id === it.id);
+        if (idx >= 0) {
+          const cur = items2[idx];
+          const curTotal = getTotalQty(cur);
+          if (name) cur.name = name;
+          if (chosen >= curTotal) {
+            cur.loc = other;
+          } else {
+            cur.qty = String(curTotal - chosen);
+            items2.push({
+              id: uid(),
+              name: cur.name,
+              loc: other,
+              cat: cur.cat,
+              qty: String(chosen),
+              expiry: '',
+              notes: cur.notes,
+              added: Date.now(),
+            });
+          }
+          persistItems(items2);
+        }
+        closeAllSheets();
+        render();
+      },
+    });
+    return;
+  }
   const idx = items.findIndex(x => x.id === state.moveItemId);
   if (idx >= 0) {
-    const other = PANTRY_LOCS.find(l => l !== items[idx].loc);
     items[idx].loc = other;
     if (name) items[idx].name = name;
     persistItems(items);
@@ -277,6 +404,49 @@ function confirmMoveToFrigo() {
   }
   const name = document.getElementById('mv-name').value.trim();
   const items = loadItems();
+  const it = items.find(x => x.id === state.moveItemId);
+  if (!it) {
+    closeAllSheets();
+    render();
+    return;
+  }
+  const total = getTotalQty(it);
+  if (total > 1) {
+    openQtySheet({
+      total,
+      title: 'Quanti pezzi spostare in Frigo?',
+      desc: `"${it.name}" ha ${total} pezzi. Indica quanti spostare in Frigo con la scadenza indicata: gli altri resteranno qui.`,
+      onConfirm: (chosen) => {
+        const items2 = loadItems();
+        const idx = items2.findIndex(x => x.id === it.id);
+        if (idx >= 0) {
+          const cur = items2[idx];
+          const curTotal = getTotalQty(cur);
+          if (name) cur.name = name;
+          if (chosen >= curTotal) {
+            cur.loc = 'frigo';
+            cur.expiry = exp;
+          } else {
+            cur.qty = String(curTotal - chosen);
+            items2.push({
+              id: uid(),
+              name: cur.name,
+              loc: 'frigo',
+              cat: cur.cat,
+              qty: String(chosen),
+              expiry: exp,
+              notes: cur.notes,
+              added: Date.now(),
+            });
+          }
+          persistItems(items2);
+        }
+        closeAllSheets();
+        render();
+      },
+    });
+    return;
+  }
   const idx = items.findIndex(x => x.id === state.moveItemId);
   if (idx >= 0) {
     items[idx].loc = 'frigo';
@@ -288,10 +458,76 @@ function confirmMoveToFrigo() {
   render();
 }
 function deleteFromMove() {
-  const items = loadItems().filter(x => x.id !== state.moveItemId);
-  persistItems(items);
+  const items = loadItems();
+  const it = items.find(x => x.id === state.moveItemId);
+  if (!it) {
+    closeAllSheets();
+    render();
+    return;
+  }
+  const total = getTotalQty(it);
+  if (total > 1) {
+    openQtySheet({
+      total,
+      title: 'Quanti pezzi rimuovere?',
+      desc: `"${it.name}" ha ${total} pezzi. Indica quanti rimuoverne: gli altri resteranno in elenco.`,
+      onConfirm: (chosen) => {
+        const items2 = loadItems();
+        const idx = items2.findIndex(x => x.id === it.id);
+        if (idx >= 0) {
+          const cur = items2[idx];
+          const curTotal = getTotalQty(cur);
+          if (chosen >= curTotal) {
+            items2.splice(idx, 1);
+          } else {
+            cur.qty = String(curTotal - chosen);
+          }
+          persistItems(items2);
+        }
+        closeAllSheets();
+        render();
+      },
+    });
+    return;
+  }
+  const items2 = items.filter(x => x.id !== state.moveItemId);
+  persistItems(items2);
   closeAllSheets();
   render();
+}
+
+// ---------- Sheet: quanti pezzi? (usata da rimozione, spostamento e cambio scadenza) ----------
+// config: { total, title, desc, onConfirm(chosenQty) }
+function openQtySheet(config) {
+  state.pendingSplit = config;
+  document.getElementById('qty-title').textContent = config.title;
+  document.getElementById('qty-desc').textContent = config.desc;
+  const input = document.getElementById('qty-input');
+  input.min = '1';
+  input.max = String(config.total);
+  // Di default propone 1 pezzo: se l'utente non tocca il campo, l'azione
+  // riguarda solo un pezzo e non l'intero alimento.
+  input.value = '1';
+  // Nasconde le altre sheet aperte così quella dei pezzi risulta in primo piano.
+  ['sheet-add', 'sheet-frigo', 'sheet-move'].forEach(id => {
+    document.getElementById(id).classList.remove('show');
+  });
+  showSheet('sheet-qty');
+}
+function cancelQtySheet() {
+  closeAllSheets();
+  render();
+}
+function confirmQtySheet() {
+  const config = state.pendingSplit;
+  if (!config) {
+    closeAllSheets();
+    return;
+  }
+  let chosen = parseInt(document.getElementById('qty-input').value, 10);
+  if (!Number.isFinite(chosen) || chosen < 1) chosen = 1;
+  if (chosen > config.total) chosen = config.total;
+  config.onConfirm(chosen);
 }
 
 // ---------- Gestione sheet condivisa ----------
@@ -301,11 +537,12 @@ function showSheet(id) {
 }
 function closeAllSheets() {
   document.getElementById('backdrop').classList.remove('show');
-  ['sheet-add', 'sheet-frigo', 'sheet-move', 'sheet-sync'].forEach(id => {
+  ['sheet-add', 'sheet-frigo', 'sheet-move', 'sheet-qty', 'sheet-sync'].forEach(id => {
     document.getElementById(id).classList.remove('show');
   });
   state.frigoItemId = null;
   state.moveItemId = null;
+  state.pendingSplit = null;
 }
 
 // ---------- Sincronizzazione con GitHub Gist (per lo Shortcut delle 10) ----------
@@ -534,6 +771,9 @@ document.getElementById('btn-move-delete').addEventListener('click', deleteFromM
 document.getElementById('btn-move-cancel').addEventListener('click', closeAllSheets);
 document.getElementById('btn-move-frigo-back').addEventListener('click', backFromMoveToFrigo);
 document.getElementById('btn-move-frigo-confirm').addEventListener('click', confirmMoveToFrigo);
+
+document.getElementById('btn-qty-cancel').addEventListener('click', cancelQtySheet);
+document.getElementById('btn-qty-confirm').addEventListener('click', confirmQtySheet);
 
 document.getElementById('backdrop').addEventListener('click', closeAllSheets);
 document.getElementById('btn-scan').addEventListener('click', openScanner);
