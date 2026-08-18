@@ -1,12 +1,12 @@
 {
-  "name": "Dispensa",
-  "short_name": "Dispensa",
-  "description": "Traccia gli alimenti in frigo e in dispensa, divisi per macronutrienti, con scadenze.",
+  "name": "Provviste",
+  "short_name": "Provviste",
+  "description": "Traccia gli alimenti in frigo, dispensa e cantina, divisi per macronutrienti, con scadenze.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0f1512",
-  "theme_color": "#1c8c5b",
+  "background_color": "#12101f",
+  "theme_color": "#12101f",
   "orientation": "portrait",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },

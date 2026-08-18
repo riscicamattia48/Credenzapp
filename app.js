@@ -176,7 +176,6 @@ function saveAdd() {
   persistItems(items);
   closeAllSheets();
   render();
-  maybeNotify();
 }
 
 // ---------- Apertura scheda alimento esistente ----------
@@ -213,7 +212,6 @@ function saveFrigo() {
   }
   closeAllSheets();
   render();
-  maybeNotify();
 }
 function deleteFrigo() {
   const items = loadItems().filter(x => x.id !== state.frigoItemId);
@@ -288,7 +286,6 @@ function confirmMoveToFrigo() {
   }
   closeAllSheets();
   render();
-  maybeNotify();
 }
 function deleteFromMove() {
   const items = loadItems().filter(x => x.id !== state.moveItemId);
@@ -414,37 +411,6 @@ function showToast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
-
-// ---------- Notifications (locali, solo quando l'app è aperta) ----------
-function maybeNotify() {
-  if (!('Notification' in window)) return;
-  if (Notification.permission !== 'granted') return;
-  const items = loadItems();
-  const urgent = items.filter(it => {
-    const d = daysUntil(it.expiry);
-    return d !== null && d <= SOON_DAYS;
-  });
-  if (urgent.length > 0) {
-    try {
-      new Notification('Dispensa: alimenti in scadenza', {
-        body: urgent.slice(0, 5).map(i => `${i.name} (${expiryLabel(i.expiry)})`).join('\n'),
-      });
-    } catch (e) { /* iOS può ignorare in alcuni contesti */ }
-  }
-}
-document.getElementById('btn-notify').addEventListener('click', async () => {
-  if (!('Notification' in window)) {
-    showToast('Notifiche non supportate in questo browser');
-    return;
-  }
-  const perm = await Notification.requestPermission();
-  if (perm === 'granted') {
-    showToast('Notifiche attive: controllate ad ogni apertura');
-    maybeNotify();
-  } else {
-    showToast('Permesso negato');
-  }
-});
 
 // ---------- Export / Import ----------
 document.getElementById('btn-export').addEventListener('click', () => {
@@ -594,4 +560,3 @@ if ('serviceWorker' in navigator) {
 
 // ---------- Init ----------
 render();
-maybeNotify();

@@ -3,17 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Dispensa</title>
+<title>Provviste</title>
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Dispensa">
+<meta name="apple-mobile-web-app-title" content="Provviste">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="theme-color" content="#1c8c5b">
+<meta name="theme-color" content="#f5f4fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12101f" media="(prefers-color-scheme: dark)">
 <style>
   :root{
-    --bg:#0f1512; --card:#171f1b; --card2:#1e2822; --text:#eef2ee; --muted:#9db3a6;
-    --green:#2fbf71; --amber:#e8a93a; --red:#e8543a; --accent:#1c8c5b; --border:#2a352e;
+    --bg:#f5f4fb; --card:#ffffff; --card2:#ece9f9; --text:#262038; --muted:#837c9e;
+    --green:#6d5bd0; --amber:#c98a1f; --red:#c93a52; --accent:#6d5bd0; --border:#e2ddf2;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#12101f; --card:#1b1830; --card2:#23203e; --text:#eeecf9; --muted:#9891bd;
+      --green:#8b7cf6; --amber:#e8b34a; --red:#f0616f; --accent:#8b7cf6; --border:#2c2850;
+    }
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
@@ -21,7 +28,9 @@
   body{padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);}
   #app{max-width:520px;margin:0 auto;padding:14px 14px 100px;}
   header{position:sticky;top:0;background:var(--bg);padding:10px 0 6px;z-index:5;}
-  h1{font-size:22px;margin:4px 0 10px;font-weight:700;}
+  .brandrow{display:flex;align-items:center;gap:10px;margin:4px 0 10px;}
+  .brandmark{width:14px;height:14px;border-radius:4px;background:var(--accent);flex-shrink:0;}
+  h1{font-size:22px;margin:0;font-weight:700;letter-spacing:-0.01em;}
   .tabs{display:flex;gap:8px;margin-bottom:10px;}
   .tab{flex:1;text-align:center;padding:10px;border-radius:12px;background:var(--card);
     color:var(--muted);font-weight:600;font-size:14px;border:1px solid var(--border);}
@@ -88,7 +97,7 @@
 <body>
 <div id="app">
   <header>
-    <h1>🥦 Dispensa</h1>
+    <div class="brandrow"><div class="brandmark"></div><h1>Provviste</h1></div>
     <div class="tabs">
       <div class="tab active" data-loc="frigo">Frigo</div>
       <div class="tab" data-loc="dispensa">Dispensa</div>
@@ -105,7 +114,6 @@
     <div class="toolbar">
       <button class="iconbtn" id="btn-export">⬇︎ Esporta</button>
       <button class="iconbtn" id="btn-import">⬆︎ Importa</button>
-      <button class="iconbtn" id="btn-notify">🔔 Notifiche</button>
       <button class="iconbtn" id="btn-sync">🔗 Sync</button>
     </div>
   </header>
