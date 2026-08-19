@@ -537,17 +537,36 @@ function openQtySheet(config) {
   state.pendingSplit = config;
   document.getElementById('qty-title').textContent = config.title;
   document.getElementById('qty-desc').textContent = config.desc;
+  // Riparte sempre dai pulsanti rapidi: il campo "Altro" e il tasto Conferma
+  // restano nascosti finché non si tocca "Altro".
+  document.getElementById('qty-custom-field').style.display = 'none';
+  document.getElementById('btn-qty-confirm').style.display = 'none';
   const input = document.getElementById('qty-input');
   input.min = '1';
   input.max = String(config.total);
-  // Di default propone 1 pezzo: se l'utente non tocca il campo, l'azione
-  // riguarda solo un pezzo e non l'intero alimento.
   input.value = '1';
   // Nasconde le altre sheet aperte così quella dei pezzi risulta in primo piano.
   ['sheet-add', 'sheet-frigo', 'sheet-move'].forEach(id => {
     document.getElementById(id).classList.remove('show');
   });
   showSheet('sheet-qty');
+}
+// Applica subito l'azione con un numero di pezzi predefinito (pulsanti 1 / 2 / Tutti).
+function applyQtyChoice(chosen) {
+  const config = state.pendingSplit;
+  if (!config) return;
+  if (chosen > config.total) chosen = config.total;
+  if (chosen < 1) chosen = 1;
+  config.onConfirm(chosen);
+}
+function selectQtyAll() {
+  applyQtyChoice(state.pendingSplit ? state.pendingSplit.total : 1);
+}
+// "Altro": mostra il campo numerico e il tasto Conferma per una quantità a scelta.
+function showQtyCustomField() {
+  document.getElementById('qty-custom-field').style.display = 'block';
+  document.getElementById('btn-qty-confirm').style.display = 'block';
+  document.getElementById('qty-input').focus();
 }
 function cancelQtySheet() {
   closeAllSheets();
@@ -814,6 +833,10 @@ document.getElementById('btn-move-cancel').addEventListener('click', closeAllShe
 document.getElementById('btn-move-frigo-back').addEventListener('click', backFromMoveToFrigo);
 document.getElementById('btn-move-frigo-confirm').addEventListener('click', confirmMoveToFrigo);
 
+document.getElementById('qty-btn-1').addEventListener('click', () => applyQtyChoice(1));
+document.getElementById('qty-btn-2').addEventListener('click', () => applyQtyChoice(2));
+document.getElementById('qty-btn-all').addEventListener('click', selectQtyAll);
+document.getElementById('qty-btn-custom').addEventListener('click', showQtyCustomField);
 document.getElementById('btn-qty-cancel').addEventListener('click', cancelQtySheet);
 document.getElementById('btn-qty-confirm').addEventListener('click', confirmQtySheet);
 
@@ -831,6 +854,22 @@ document.getElementById('btn-sync-copy').addEventListener('click', () => {
     () => showToast('Indirizzo copiato'),
     () => showToast('Copia non riuscita, selezionalo manualmente')
   );
+});
+
+// ---------- Menu "⋯" (Esporta / Importa / Sync) ----------
+// Azioni usate raramente: stanno in un piccolo menu a tendina in alto a destra
+// invece di occupare sempre spazio visibile nella schermata principale.
+document.getElementById('btn-menu').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('menu-dropdown').classList.toggle('show');
+});
+document.getElementById('menu-dropdown').addEventListener('click', e => {
+  if (e.target.tagName === 'BUTTON') {
+    document.getElementById('menu-dropdown').classList.remove('show');
+  }
+});
+document.addEventListener('click', () => {
+  document.getElementById('menu-dropdown').classList.remove('show');
 });
 
 // ---------- PWA / Service worker ----------

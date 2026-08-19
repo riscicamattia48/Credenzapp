@@ -30,7 +30,7 @@
   header{position:sticky;top:0;background:var(--bg);padding:10px 0 6px;z-index:5;}
   .brandrow{display:flex;align-items:center;gap:10px;margin:4px 0 10px;}
   .brandmark{width:14px;height:14px;border-radius:4px;background:var(--accent);flex-shrink:0;}
-  h1{font-size:22px;margin:0;font-weight:700;letter-spacing:-0.01em;}
+  h1{font-size:22px;margin:0;font-weight:700;letter-spacing:-0.01em;flex:1;}
   .tabs{display:flex;gap:8px;margin-bottom:10px;}
   .tab{flex:1;text-align:center;padding:10px;border-radius:12px;background:var(--card);
     color:var(--muted);font-weight:600;font-size:14px;border:1px solid var(--border);}
@@ -58,7 +58,7 @@
   .item .info{flex:1;min-width:0;}
   .item .name{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .item .meta{font-size:12px;color:var(--muted);margin-top:2px;}
-  .item .qty{font-size:12px;color:var(--muted);white-space:nowrap;}
+  .item .qty{font-size:19px;font-weight:700;color:var(--text);white-space:nowrap;}
   .empty{color:var(--muted);text-align:center;padding:30px 10px;font-size:14px;}
   .fab{position:fixed;right:20px;bottom:calc(24px + env(safe-area-inset-bottom));
     width:58px;height:58px;border-radius:50%;background:var(--accent);color:#fff;font-size:28px;
@@ -75,6 +75,10 @@
   .row2{display:flex;gap:8px;}
   .row2>div{flex:1;}
   .btnrow{display:flex;gap:10px;margin-top:14px;}
+  .qtybtnrow{display:flex;gap:8px;margin-top:14px;}
+  .qtybtn{flex:1;background:var(--card2);color:var(--text);border:1px solid var(--border);
+    border-radius:10px;padding:12px 4px;font-size:15px;font-weight:600;text-align:center;}
+  .qtybtn:active{background:var(--accent);color:#fff;border-color:var(--accent);}
   button.primary{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px;
     font-size:15px;font-weight:600;flex:1;}
   button.secondary{background:var(--card2);color:var(--text);border:1px solid var(--border);
@@ -97,15 +101,34 @@
     color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:40;opacity:0;
     transition:opacity .2s;pointer-events:none;}
   .toast.show{opacity:1;}
-  .toolbar{display:flex;gap:8px;margin:6px 0 4px;}
   .iconbtn{background:var(--card2);border:1px solid var(--border);color:var(--muted);
     border-radius:10px;padding:8px 10px;font-size:12px;}
+  .menuwrap{position:relative;}
+  .menubtn{font-size:20px;font-weight:700;line-height:1;padding:6px 12px;letter-spacing:1px;}
+  .dropdown{position:absolute;top:calc(100% + 6px);right:0;background:var(--card);
+    border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.25);
+    display:none;flex-direction:column;min-width:170px;z-index:15;overflow:hidden;}
+  .dropdown.show{display:flex;}
+  .dropdown button{background:transparent;border:none;text-align:left;padding:12px 14px;
+    font-size:14px;color:var(--text);border-bottom:1px solid var(--border);}
+  .dropdown button:last-child{border-bottom:none;}
+  .dropdown button:active{background:var(--card2);}
 </style>
 </head>
 <body>
 <div id="app">
   <header>
-    <div class="brandrow"><div class="brandmark"></div><h1>Provviste</h1></div>
+    <div class="brandrow">
+      <div class="brandmark"></div><h1>Provviste</h1>
+      <div class="menuwrap">
+        <button class="iconbtn menubtn" id="btn-menu">⋯</button>
+        <div class="dropdown" id="menu-dropdown">
+          <button id="btn-export">⬇︎ Esporta</button>
+          <button id="btn-import">⬆︎ Importa</button>
+          <button id="btn-sync">🔗 Sync</button>
+        </div>
+      </div>
+    </div>
     <div class="tabs">
       <div class="tab active" data-loc="frigo">Frigo</div>
       <div class="tab" data-loc="dispensa">Dispensa</div>
@@ -118,11 +141,6 @@
       <div class="pill crit"><b id="cnt-expired">0</b>scadute</div>
       <div class="pill warn"><b id="cnt-soon">0</b>in scadenza</div>
       <div class="pill ok"><b id="cnt-total">0</b>totali</div>
-    </div>
-    <div class="toolbar">
-      <button class="iconbtn" id="btn-export">⬇︎ Esporta</button>
-      <button class="iconbtn" id="btn-import">⬆︎ Importa</button>
-      <button class="iconbtn" id="btn-sync">🔗 Sync</button>
     </div>
   </header>
   <div id="list"></div>
@@ -230,13 +248,19 @@
 <div class="sheet" id="sheet-qty">
   <h3 id="qty-title">Quanti pezzi?</h3>
   <p id="qty-desc" style="color:var(--muted);font-size:13px;margin-top:0;"></p>
-  <div class="field">
-    <label>Pezzi</label>
+  <div class="qtybtnrow">
+    <button class="qtybtn" id="qty-btn-1">1</button>
+    <button class="qtybtn" id="qty-btn-2">2</button>
+    <button class="qtybtn" id="qty-btn-all">Tutti</button>
+    <button class="qtybtn" id="qty-btn-custom">Altro</button>
+  </div>
+  <div class="field" id="qty-custom-field" style="display:none;">
+    <label>Quantità</label>
     <input id="qty-input" type="number" min="1" step="1">
   </div>
   <div class="btnrow">
     <button class="secondary" id="btn-qty-cancel">Annulla</button>
-    <button class="primary" id="btn-qty-confirm">Conferma</button>
+    <button class="primary" id="btn-qty-confirm" style="display:none;">Conferma</button>
   </div>
 </div>
 
