@@ -1,6 +1,6 @@
 {
-  "name": "Provviste",
-  "short_name": "Provviste",
+  "name": "CredenzApp",
+  "short_name": "CredenzApp",
   "description": "Traccia gli alimenti in frigo, dispensa e cantina, divisi per macronutrienti, con scadenze.",
   "start_url": "./index.html",
   "scope": "./",

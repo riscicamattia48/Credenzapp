@@ -625,7 +625,7 @@ async function syncToGist(items) {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          description: 'Dispensa - dati alimenti (generato automaticamente, non modificare a mano)',
+          description: 'CredenzApp - dati alimenti (generato automaticamente, non modificare a mano)',
           public: false,
           files: { [GIST_FILENAME]: { content } },
         }),
