@@ -1,4 +1,4 @@
-/* Dispensa - app locale per tracciare frigo, dispensa e cantina
+/* CredenzApp - app locale per tracciare frigo, dispensa e cantina
    Dati salvati in localStorage, nessun server coinvolto. */
 
 const STORAGE_KEY = 'dispensa.items.v1';
@@ -710,7 +710,7 @@ document.getElementById('btn-export').addEventListener('click', () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `dispensa-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `credenzapp-backup-${new Date().toISOString().slice(0, 10)}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
