@@ -847,6 +847,15 @@ document.getElementById('qty-btn-custom').addEventListener('click', showQtyCusto
 document.getElementById('btn-qty-cancel').addEventListener('click', cancelQtySheet);
 document.getElementById('btn-qty-confirm').addEventListener('click', confirmQtySheet);
 
+// Toccando il campo quantità mentre mostra ancora il valore predefinito "1",
+// lo svuota subito: così si digita direttamente il numero voluto senza dover
+// prima cancellare a mano. Se si salva senza aver digitato nulla, torna a 1.
+function clearQtyDefaultOnFocus(e) {
+  if (e.target.value === '1') e.target.value = '';
+}
+document.getElementById('f-qty').addEventListener('focus', clearQtyDefaultOnFocus);
+document.getElementById('qty-input').addEventListener('focus', clearQtyDefaultOnFocus);
+
 document.getElementById('backdrop').addEventListener('click', closeAllSheets);
 document.getElementById('btn-scan').addEventListener('click', openScanner);
 document.getElementById('btn-close-scan').addEventListener('click', closeScanner);
