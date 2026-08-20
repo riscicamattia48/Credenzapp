@@ -604,7 +604,9 @@ const SYNC_TOKEN_KEY = 'dispensa.sync.token';
 const SYNC_GIST_KEY = 'dispensa.sync.gistId';
 const SYNC_OWNER_KEY = 'dispensa.sync.owner';
 const SYNC_URL_KEY = 'dispensa.sync.rawUrl';
-const GIST_FILENAME = 'dispensa.json';
+const SYNC_RENAMED_KEY = 'dispensa.sync.filenameMigratedToCredenzapp';
+const GIST_FILENAME_OLD = 'dispensa.json';
+const GIST_FILENAME = 'credenzapp.json';
 
 function getSyncToken() { return localStorage.getItem(SYNC_TOKEN_KEY) || ''; }
 
@@ -621,6 +623,7 @@ async function syncToGist(items) {
     let gistId = localStorage.getItem(SYNC_GIST_KEY);
     let res, data;
     if (!gistId) {
+      // Nessun Gist ancora: lo creiamo già con il nome file nuovo.
       res = await fetch('https://api.github.com/gists', {
         method: 'POST',
         headers,
@@ -634,6 +637,21 @@ async function syncToGist(items) {
       data = await res.json();
       localStorage.setItem(SYNC_GIST_KEY, data.id);
       localStorage.setItem(SYNC_OWNER_KEY, data.owner.login);
+      localStorage.setItem(SYNC_RENAMED_KEY, '1'); // gist nuovo, nessuna migrazione necessaria
+    } else if (!localStorage.getItem(SYNC_RENAMED_KEY)) {
+      // Migrazione una tantum per i Gist creati prima del rebrand: rinomina il file
+      // "dispensa.json" già esistente in "credenzapp.json" nello stesso Gist (non ne
+      // crea uno nuovo abbandonando il vecchio), aggiornando anche il contenuto.
+      res = await fetch(`https://api.github.com/gists/${gistId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          files: { [GIST_FILENAME_OLD]: { filename: GIST_FILENAME, content } },
+        }),
+      });
+      if (!res.ok) throw new Error('migrazione nome file fallita: ' + res.status);
+      data = await res.json();
+      localStorage.setItem(SYNC_RENAMED_KEY, '1');
     } else {
       res = await fetch(`https://api.github.com/gists/${gistId}`, {
         method: 'PATCH',
