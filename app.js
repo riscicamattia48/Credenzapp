@@ -94,6 +94,14 @@ function expiryLabel(dateStr) {
 }
 
 // ---------- Rendering ----------
+// Somma i pezzi reali (qty) di un elenco di alimenti, invece di contare
+// semplicemente quante voci ci sono: 4 uova scadute contano come 4, non come 1.
+function sumQty(arr) {
+  return arr.reduce((total, it) => {
+    const q = parseInt(it.qty, 10);
+    return total + (Number.isFinite(q) && q > 0 ? q : 1);
+  }, 0);
+}
 function render() {
   const items = loadItems();
   const locItems = items.filter(it => it.loc === state.loc);
@@ -102,14 +110,14 @@ function render() {
     return true;
   });
 
-  const expiredCount = locItems.filter(it => daysUntil(it.expiry) !== null && daysUntil(it.expiry) < 0).length;
-  const soonCount = locItems.filter(it => {
+  const expiredCount = sumQty(locItems.filter(it => daysUntil(it.expiry) !== null && daysUntil(it.expiry) < 0));
+  const soonCount = sumQty(locItems.filter(it => {
     const d = daysUntil(it.expiry);
     return d !== null && d >= 0 && d <= SOON_DAYS;
-  }).length;
+  }));
   document.getElementById('cnt-expired').textContent = expiredCount;
   document.getElementById('cnt-soon').textContent = soonCount;
-  document.getElementById('cnt-total').textContent = locItems.length;
+  document.getElementById('cnt-total').textContent = sumQty(locItems);
 
   const list = document.getElementById('list');
   list.innerHTML = '';
@@ -139,7 +147,7 @@ function render() {
       group.className = 'group';
       const h2 = document.createElement('h2');
       h2.className = 'group-toggle';
-      h2.innerHTML = `<span class="chev">${expanded ? '▾' : '▸'}</span> ${CAT_EMOJI[cat] || ''} ${cat} (${catItems.length})`;
+      h2.innerHTML = `<span class="chev">${expanded ? '▾' : '▸'}</span> ${CAT_EMOJI[cat] || ''} ${cat} (${sumQty(catItems)})`;
       if (!searching) {
         h2.addEventListener('click', () => toggleCat(key));
       }
