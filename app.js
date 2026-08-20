@@ -773,6 +773,13 @@ function closeScanner() {
   }
   document.getElementById('scanner').classList.remove('show');
 }
+// Open Food Facts restituisce spesso i nomi tutti minuscoli (es. "piadelle"):
+// mettiamo in maiuscolo solo la prima lettera, lasciando il resto invariato
+// (così eventuali marchi con maiuscole particolari non vengono alterati).
+function capitalizeFirst(s) {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 async function onScanSuccess(decodedText) {
   closeScanner();
   showToast('Codice letto, ricerca prodotto...');
@@ -781,7 +788,7 @@ async function onScanSuccess(decodedText) {
     const json = await res.json();
     if (json.status === 1 && json.product) {
       const p = json.product;
-      document.getElementById('f-name').value = p.product_name || p.generic_name || decodedText;
+      document.getElementById('f-name').value = capitalizeFirst(p.product_name || p.generic_name || decodedText);
       const n = p.nutriments || {};
       const prot = parseFloat(n['proteins_100g']) || 0;
       const carb = parseFloat(n['carbohydrates_100g']) || 0;
@@ -791,7 +798,7 @@ async function onScanSuccess(decodedText) {
       else if (carb >= prot && carb >= fat && carb > 0) guess = 'Carboidrati';
       else if (fat > 0) guess = 'Grassi';
       document.getElementById('f-cat').value = guess;
-      showToast('Prodotto trovato: ' + (p.product_name || 'senza nome'));
+      showToast('Prodotto trovato: ' + capitalizeFirst(p.product_name || 'senza nome'));
     } else {
       document.getElementById('f-name').value = decodedText;
       showToast('Prodotto non trovato nel database, nome impostato al codice');
