@@ -63,6 +63,13 @@ function persistItems(items) {
 function uid() {
   return 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
+// Data odierna in formato gg/mm, usata per il suggerimento automatico nel campo note.
+function todayDDMM() {
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}`;
+}
 // Numero di pezzi di un alimento (sempre almeno 1, anche su dati vecchi/non numerici).
 function getTotalQty(it) {
   const n = parseInt(it && it.qty, 10);
@@ -201,6 +208,7 @@ function openAddSheet() {
   document.getElementById('f-qty').value = '1';
   document.getElementById('f-exp').value = '';
   document.getElementById('f-notes').value = '';
+  document.getElementById('f-notes').placeholder = `Es. aperto il ${todayDDMM()}`;
   toggleFieldsByLoc(state.loc);
   showSheet('sheet-add');
 }
@@ -211,20 +219,39 @@ function saveAdd() {
     return;
   }
   const loc = document.getElementById('f-loc').value;
+  const cat = document.getElementById('f-cat').value;
   const items = loadItems();
   const qtyRaw = parseInt(document.getElementById('f-qty').value, 10);
   const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : 1;
-  items.push({
-    id: uid(),
-    name,
-    loc,
-    cat: document.getElementById('f-cat').value,
-    qty: String(qty),
-    expiry: loc === 'frigo' ? document.getElementById('f-exp').value : '',
-    notes: document.getElementById('f-notes').value.trim(),
-    added: Date.now(),
+  const expiry = loc === 'frigo' ? document.getElementById('f-exp').value : '';
+  const notes = document.getElementById('f-notes').value.trim();
+
+  // Se lo stesso alimento è già presente nella stessa sezione (stesso nome,
+  // stessa scadenza in Frigo o stessa categoria in Dispensa/Cantina), si
+  // somma la quantità alla voce esistente invece di creare una riga duplicata.
+  const existing = items.find(it => {
+    if (it.loc !== loc) return false;
+    if (it.name.trim().toLowerCase() !== name.toLowerCase()) return false;
+    return loc === 'frigo' ? (it.expiry || '') === (expiry || '') : it.cat === cat;
   });
-  persistItems(items);
+
+  if (existing) {
+    existing.qty = String(getTotalQty(existing) + qty);
+    if (notes) existing.notes = notes;
+    persistItems(items);
+  } else {
+    items.push({
+      id: uid(),
+      name,
+      loc,
+      cat,
+      qty: String(qty),
+      expiry,
+      notes,
+      added: Date.now(),
+    });
+    persistItems(items);
+  }
   closeAllSheets();
   render();
 }
@@ -247,6 +274,7 @@ function openFrigoSheet(it) {
   document.getElementById('fr-name').value = it.name;
   document.getElementById('fr-exp').value = it.expiry || '';
   document.getElementById('fr-notes').value = it.notes || '';
+  document.getElementById('fr-notes').placeholder = `Es. aperto il ${todayDDMM()}`;
   showSheet('sheet-frigo');
 }
 function saveFrigo() {
@@ -358,6 +386,7 @@ function openMoveSheet(it) {
   state.moveItemId = it.id;
   document.getElementById('mv-name').value = it.name;
   document.getElementById('mv-notes').value = it.notes || '';
+  document.getElementById('mv-notes').placeholder = `Es. aperto il ${todayDDMM()}`;
   const other = PANTRY_LOCS.find(l => l !== it.loc);
   document.getElementById('btn-move-other').textContent = `Sposta in ${LOC_LABEL[other]}`;
   document.getElementById('move-main').style.display = 'block';
@@ -895,6 +924,22 @@ function clearQtyDefaultOnFocus(e) {
 }
 document.getElementById('f-qty').addEventListener('focus', clearQtyDefaultOnFocus);
 document.getElementById('qty-input').addEventListener('focus', clearQtyDefaultOnFocus);
+
+// Toccando il campo note mentre è vuoto, lo precompila con "aperto il gg/mm"
+// (data odierna) e ne seleziona subito il testo: così, se si inizia a
+// digitare, il testo proposto viene sostituito da quello che si scrive
+// (comportamento nativo di selezione+digitazione), mentre se non si digita
+// nulla resta compilato con la proposta. Se il campo non viene mai toccato
+// (es. si modifica solo la scadenza) resta vuoto e non viene salvato nulla.
+// Se contiene già una nota esistente, il focus non la sovrascrive.
+function fillNotesDefaultOnFocus(e) {
+  if (e.target.value.trim() !== '') return;
+  e.target.value = `aperto il ${todayDDMM()}`;
+  e.target.select();
+}
+document.getElementById('f-notes').addEventListener('focus', fillNotesDefaultOnFocus);
+document.getElementById('fr-notes').addEventListener('focus', fillNotesDefaultOnFocus);
+document.getElementById('mv-notes').addEventListener('focus', fillNotesDefaultOnFocus);
 
 document.getElementById('backdrop').addEventListener('click', closeAllSheets);
 document.getElementById('btn-scan').addEventListener('click', openScanner);
