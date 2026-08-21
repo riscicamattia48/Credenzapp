@@ -246,6 +246,7 @@ function openFrigoSheet(it) {
   state.frigoItemId = it.id;
   document.getElementById('fr-name').value = it.name;
   document.getElementById('fr-exp').value = it.expiry || '';
+  document.getElementById('fr-notes').value = it.notes || '';
   showSheet('sheet-frigo');
 }
 function saveFrigo() {
@@ -255,6 +256,7 @@ function saveFrigo() {
     return;
   }
   const newExpiry = document.getElementById('fr-exp').value;
+  const notes = document.getElementById('fr-notes').value.trim();
   const items = loadItems();
   const it = items.find(x => x.id === state.frigoItemId);
   if (!it) {
@@ -278,9 +280,11 @@ function saveFrigo() {
           if (chosen >= curTotal) {
             cur.name = name;
             cur.expiry = newExpiry;
+            cur.notes = notes;
           } else {
             cur.name = name;
             cur.qty = String(curTotal - chosen);
+            cur.notes = notes;
             items2.push({
               id: uid(),
               name,
@@ -288,7 +292,7 @@ function saveFrigo() {
               cat: cur.cat,
               qty: String(chosen),
               expiry: newExpiry,
-              notes: cur.notes,
+              notes,
               added: Date.now(),
             });
           }
@@ -304,6 +308,7 @@ function saveFrigo() {
   if (idx >= 0) {
     items[idx].name = name;
     items[idx].expiry = newExpiry;
+    items[idx].notes = notes;
     persistItems(items);
   }
   closeAllSheets();
@@ -352,6 +357,7 @@ function deleteFrigo() {
 function openMoveSheet(it) {
   state.moveItemId = it.id;
   document.getElementById('mv-name').value = it.name;
+  document.getElementById('mv-notes').value = it.notes || '';
   const other = PANTRY_LOCS.find(l => l !== it.loc);
   document.getElementById('btn-move-other').textContent = `Sposta in ${LOC_LABEL[other]}`;
   document.getElementById('move-main').style.display = 'block';
@@ -364,10 +370,12 @@ function saveMoveName() {
     showToast('Inserisci un nome');
     return;
   }
+  const notes = document.getElementById('mv-notes').value.trim();
   const items = loadItems();
   const idx = items.findIndex(x => x.id === state.moveItemId);
   if (idx >= 0) {
     items[idx].name = name;
+    items[idx].notes = notes;
     persistItems(items);
   }
   closeAllSheets();
@@ -375,6 +383,7 @@ function saveMoveName() {
 }
 function moveToOtherPantry() {
   const name = document.getElementById('mv-name').value.trim();
+  const notes = document.getElementById('mv-notes').value.trim();
   const items = loadItems();
   const it = items.find(x => x.id === state.moveItemId);
   if (!it) {
@@ -396,6 +405,7 @@ function moveToOtherPantry() {
           const cur = items2[idx];
           const curTotal = getTotalQty(cur);
           if (name) cur.name = name;
+          cur.notes = notes;
           if (chosen >= curTotal) {
             cur.loc = other;
           } else {
@@ -407,7 +417,7 @@ function moveToOtherPantry() {
               cat: cur.cat,
               qty: String(chosen),
               expiry: '',
-              notes: cur.notes,
+              notes,
               added: Date.now(),
             });
           }
@@ -423,6 +433,7 @@ function moveToOtherPantry() {
   if (idx >= 0) {
     items[idx].loc = other;
     if (name) items[idx].name = name;
+    items[idx].notes = notes;
     persistItems(items);
   }
   closeAllSheets();
@@ -446,6 +457,7 @@ function confirmMoveToFrigo() {
     return;
   }
   const name = document.getElementById('mv-name').value.trim();
+  const notes = document.getElementById('mv-notes').value.trim();
   const items = loadItems();
   const it = items.find(x => x.id === state.moveItemId);
   if (!it) {
@@ -466,6 +478,7 @@ function confirmMoveToFrigo() {
           const cur = items2[idx];
           const curTotal = getTotalQty(cur);
           if (name) cur.name = name;
+          cur.notes = notes;
           if (chosen >= curTotal) {
             cur.loc = 'frigo';
             cur.expiry = exp;
@@ -478,7 +491,7 @@ function confirmMoveToFrigo() {
               cat: cur.cat,
               qty: String(chosen),
               expiry: exp,
-              notes: cur.notes,
+              notes,
               added: Date.now(),
             });
           }
@@ -495,6 +508,7 @@ function confirmMoveToFrigo() {
     items[idx].loc = 'frigo';
     items[idx].expiry = exp;
     if (name) items[idx].name = name;
+    items[idx].notes = notes;
     persistItems(items);
   }
   closeAllSheets();
