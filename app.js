@@ -70,6 +70,10 @@ function todayDDMM() {
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   return `${dd}/${mm}`;
 }
+// Testo proposto di default per il campo note.
+function defaultNotesText() {
+  return `aperto il ${todayDDMM()}`;
+}
 // Numero di pezzi di un alimento (sempre almeno 1, anche su dati vecchi/non numerici).
 function getTotalQty(it) {
   const n = parseInt(it && it.qty, 10);
@@ -213,8 +217,9 @@ function openAddSheet() {
   document.getElementById('f-qty').value = '1';
   document.getElementById('f-exp').value = '';
   document.getElementById('f-notes').value = '';
-  document.getElementById('f-notes').placeholder = `Es. aperto il ${todayDDMM()}`;
+  document.getElementById('f-notes').placeholder = `Es. ${defaultNotesText()}`;
   document.getElementById('f-notes').setAttribute('readonly', '');
+  delete document.getElementById('f-notes').dataset.isProposal;
   toggleFieldsByLoc(state.loc);
   showSheet('sheet-add');
 }
@@ -243,6 +248,9 @@ function saveAdd() {
 
   if (existing) {
     existing.qty = String(getTotalQty(existing) + qty);
+    // Si aggiorna la nota esistente solo se e' stata scritta davvero una nota
+    // (il campo non è mai rimasto vuoto per caso): altrimenti, aggiungendo un
+    // duplicato solo per aumentarne la quantità, la nota già presente resta.
     if (notes) existing.notes = notes;
     persistItems(items);
   } else {
@@ -280,8 +288,9 @@ function openFrigoSheet(it) {
   document.getElementById('fr-name').value = it.name;
   document.getElementById('fr-exp').value = it.expiry || '';
   document.getElementById('fr-notes').value = it.notes || '';
-  document.getElementById('fr-notes').placeholder = `Es. aperto il ${todayDDMM()}`;
+  document.getElementById('fr-notes').placeholder = `Es. ${defaultNotesText()}`;
   document.getElementById('fr-notes').setAttribute('readonly', '');
+  delete document.getElementById('fr-notes').dataset.isProposal;
   showSheet('sheet-frigo');
 }
 function saveFrigo() {
@@ -393,8 +402,9 @@ function openMoveSheet(it) {
   state.moveItemId = it.id;
   document.getElementById('mv-name').value = it.name;
   document.getElementById('mv-notes').value = it.notes || '';
-  document.getElementById('mv-notes').placeholder = `Es. aperto il ${todayDDMM()}`;
+  document.getElementById('mv-notes').placeholder = `Es. ${defaultNotesText()}`;
   document.getElementById('mv-notes').setAttribute('readonly', '');
+  delete document.getElementById('mv-notes').dataset.isProposal;
   const other = PANTRY_LOCS.find(l => l !== it.loc);
   document.getElementById('btn-move-other').textContent = `Sposta in ${LOC_LABEL[other]}`;
   document.getElementById('move-main').style.display = 'block';
@@ -933,21 +943,41 @@ function clearQtyDefaultOnFocus(e) {
 document.getElementById('f-qty').addEventListener('focus', clearQtyDefaultOnFocus);
 document.getElementById('qty-input').addEventListener('focus', clearQtyDefaultOnFocus);
 
-// Toccando il campo note mentre è vuoto, lo precompila con "aperto il gg/mm"
-// (data odierna) e ne seleziona subito il testo: così, se si inizia a
-// digitare, il testo proposto viene sostituito da quello che si scrive
-// (comportamento nativo di selezione+digitazione), mentre se non si digita
-// nulla resta compilato con la proposta. Se il campo non viene mai toccato
-// (es. si modifica solo la scadenza) resta vuoto e non viene salvato nulla.
-// Se contiene già una nota esistente, il focus non la sovrascrive.
+// Il campo note, se vuoto, resta vuoto finché non lo si tocca (placeholder
+// "Es. aperto il gg/mm"): se si salva senza mai averci cliccato, la nota
+// resta vuota. Al primo tocco (focus) si precompila con la proposta "aperto
+// il gg/mm", SENZA selezionarne il testo: l'evidenziazione (usata in un
+// tentativo precedente), unita al trucco "readonly finché non toccato" qui
+// sotto, causava su iPhone reale la sparizione del contenuto della sheet.
+// Per far sì che il primo carattere digitato sostituisca comunque la
+// proposta (invece di accodarsi), si marca il campo con dataset.isProposal e
+// lo si svuota al volo al primissimo "beforeinput" (vedi discardProposalOnFirstEdit
+// più sotto) subito prima che il carattere digitato venga inserito. Se non si
+// digita nulla e si salva, resta la proposta stessa (si può "tenere com'è").
+// Se contiene già una nota vera, il focus non la tocca.
 function fillNotesDefaultOnFocus(e) {
-  if (e.target.value.trim() !== '') return;
-  e.target.value = `aperto il ${todayDDMM()}`;
-  e.target.select();
+  const el = e.target;
+  if (el.value.trim() !== '') return;
+  el.value = defaultNotesText();
+  el.dataset.isProposal = '1';
 }
 document.getElementById('f-notes').addEventListener('focus', fillNotesDefaultOnFocus);
 document.getElementById('fr-notes').addEventListener('focus', fillNotesDefaultOnFocus);
 document.getElementById('mv-notes').addEventListener('focus', fillNotesDefaultOnFocus);
+
+// Consuma il flag "isProposal" al primissimo cambiamento del campo dopo che
+// è stato precompilato con la proposta: la si svuota PRIMA che il carattere
+// digitato (o la cancellazione) venga applicato, così il risultato è "solo
+// quello che l'utente sta scrivendo", senza bisogno di selezionare il testo.
+function discardProposalOnFirstEdit(e) {
+  const el = e.target;
+  if (el.dataset.isProposal !== '1') return;
+  delete el.dataset.isProposal;
+  el.value = '';
+}
+document.getElementById('f-notes').addEventListener('beforeinput', discardProposalOnFirstEdit);
+document.getElementById('fr-notes').addEventListener('beforeinput', discardProposalOnFirstEdit);
+document.getElementById('mv-notes').addEventListener('beforeinput', discardProposalOnFirstEdit);
 
 // I campi note partono "readonly" in HTML (vedi index.html): autocomplete="off"
 // e type="search" da soli non fermano in modo affidabile il suggerimento
@@ -960,11 +990,10 @@ document.getElementById('mv-notes').addEventListener('focus', fillNotesDefaultOn
 function enableNotesFieldOnTouch(e) {
   const el = e.currentTarget;
   if (!el.hasAttribute('readonly')) return;
-  // Senza preventDefault(), il browser esegue comunque la sua azione di
-  // default per mousedown/touchstart DOPO questo listener: riposiziona il
-  // cursore in base al punto toccato, annullando la selezione fatta da
-  // fillNotesDefaultOnFocus (quindi digitare non sostituiva più la proposta,
-  // ma si accodava dopo). Da qui in poi il focus lo gestiamo noi.
+  // preventDefault() evita che il browser gestisca a modo suo il tocco
+  // (posizionamento cursore, eventuale menu di selezione) su un campo che
+  // stiamo sbloccando/rifocalizzando via JS nello stesso gesto: da qui in
+  // poi il focus lo gestiamo noi.
   e.preventDefault();
   el.removeAttribute('readonly');
   el.focus();
