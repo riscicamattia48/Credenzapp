@@ -653,7 +653,6 @@ function closeAllSheets() {
   ['sheet-add', 'sheet-frigo', 'sheet-move', 'sheet-qty', 'sheet-sync'].forEach(id => {
     document.getElementById(id).classList.remove('show');
   });
-  resetSheetKeyboardOffset();
   state.frigoItemId = null;
   state.moveItemId = null;
   state.pendingSplit = null;
@@ -977,37 +976,22 @@ function enableNotesFieldOnTouch(e) {
 });
 
 // ---------- Sheet vs tastiera su iOS ----------
-// Su iOS Safari gli elementi "position:fixed" restano ancorati al viewport di
-// LAYOUT, che non si restringe quando compare la tastiera (si restringe solo
-// il "visual viewport"): il browser quindi non "sa" che la tastiera coprirebbe
-// i campi più in basso in una sheet (es. le note), e scrollIntoView da solo
-// non basta perché ragiona sul layout, non su cosa sia davvero visibile a
-// schermo. Bisogna quindi risollevare la sheet aperta di quanto serve.
-// (Un primo tentativo causava uno scatto anche toccando campi già visibili
-// in alto: era dovuto a scrollIntoView con block:"center", che ri-centrava
-// forzatamente qualsiasi campo. Usando "nearest" — che scorre solo il minimo
-// indispensabile — il riposizionamento qui sotto e lo scroll si combinano
-// senza più quel problema.)
-function adjustOpenSheetForKeyboard() {
-  if (!window.visualViewport) return;
-  const openSheet = document.querySelector('.sheet.show');
-  if (!openSheet) return;
-  const keyboardHeight = Math.max(0, window.innerHeight - window.visualViewport.height);
-  openSheet.style.bottom = keyboardHeight + 'px';
-  openSheet.style.maxHeight = Math.round(window.visualViewport.height * 0.9) + 'px';
-}
-function resetSheetKeyboardOffset() {
-  document.querySelectorAll('.sheet').forEach(s => {
-    s.style.bottom = '';
-    s.style.maxHeight = '';
-  });
-}
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', adjustOpenSheetForKeyboard);
-}
-// In più, porta sempre il campo appena toccato dentro alla parte visibile
-// della sheet, scorrendo solo il minimo necessario ("nearest": nessun salto
-// se il campo è già visibile).
+// Due tentativi di risollevare/ridimensionare via JS la sheet aperta in base
+// al visual viewport (per evitare che la tastiera copra il campo note) hanno
+// causato un effetto collaterale confermato su dispositivo reale: toccando
+// ANCHE un campo già visibile in cima alla sheet (es. "Alimento"), il
+// contenuto scompariva verso l'alto. Non è stato possibile individuare con
+// certezza la causa esatta senza un dispositivo reale da ispezionare (probabile
+// interazione tra il ridimensionamento e l'animazione della tastiera su
+// WebKit), quindi l'approccio è stato abbandonato. Il problema di fondo è
+// invece risolto in modo strutturale: il campo note è stato spostato in alto
+// nella sheet (subito dopo il nome dell'alimento, vedi index.html), così resta
+// sempre ben sopra la porzione di schermo che la tastiera potrebbe coprire, su
+// qualunque iPhone, senza bisogno di calcoli sul viewport.
+//
+// Resta solo questo piccolo aiuto: porta il campo appena toccato dentro alla
+// parte visibile della sheet, scorrendo solo il minimo necessario ("nearest":
+// nessun salto se il campo è già visibile).
 function scrollFieldIntoViewOnFocus(e) {
   setTimeout(() => {
     e.target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
