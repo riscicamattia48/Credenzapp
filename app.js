@@ -214,6 +214,7 @@ function openAddSheet() {
   document.getElementById('f-exp').value = '';
   document.getElementById('f-notes').value = '';
   document.getElementById('f-notes').placeholder = `Es. aperto il ${todayDDMM()}`;
+  document.getElementById('f-notes').setAttribute('readonly', '');
   toggleFieldsByLoc(state.loc);
   showSheet('sheet-add');
 }
@@ -280,6 +281,7 @@ function openFrigoSheet(it) {
   document.getElementById('fr-exp').value = it.expiry || '';
   document.getElementById('fr-notes').value = it.notes || '';
   document.getElementById('fr-notes').placeholder = `Es. aperto il ${todayDDMM()}`;
+  document.getElementById('fr-notes').setAttribute('readonly', '');
   showSheet('sheet-frigo');
 }
 function saveFrigo() {
@@ -392,6 +394,7 @@ function openMoveSheet(it) {
   document.getElementById('mv-name').value = it.name;
   document.getElementById('mv-notes').value = it.notes || '';
   document.getElementById('mv-notes').placeholder = `Es. aperto il ${todayDDMM()}`;
+  document.getElementById('mv-notes').setAttribute('readonly', '');
   const other = PANTRY_LOCS.find(l => l !== it.loc);
   document.getElementById('btn-move-other').textContent = `Sposta in ${LOC_LABEL[other]}`;
   document.getElementById('move-main').style.display = 'block';
@@ -650,6 +653,7 @@ function closeAllSheets() {
   ['sheet-add', 'sheet-frigo', 'sheet-move', 'sheet-qty', 'sheet-sync'].forEach(id => {
     document.getElementById(id).classList.remove('show');
   });
+  resetSheetKeyboardOffset();
   state.frigoItemId = null;
   state.moveItemId = null;
   state.pendingSplit = null;
@@ -946,18 +950,64 @@ document.getElementById('f-notes').addEventListener('focus', fillNotesDefaultOnF
 document.getElementById('fr-notes').addEventListener('focus', fillNotesDefaultOnFocus);
 document.getElementById('mv-notes').addEventListener('focus', fillNotesDefaultOnFocus);
 
+// I campi note partono "readonly" in HTML (vedi index.html): autocomplete="off"
+// e type="search" da soli non fermano in modo affidabile il suggerimento
+// nativo di iOS "AutoFill: Indirizzi/Contatti" su questi campi. Tenerli
+// readonly finché non vengono davvero toccati evita che Safari li scansioni
+// come campi compilabili appena la sheet si apre; al primo tocco li rendiamo
+// scrivibili e li rifocalizziamo subito (nello stesso gesto dell'utente,
+// altrimenti iOS non apre la tastiera) così l'esperienza resta identica a un
+// campo di testo normale.
+function enableNotesFieldOnTouch(e) {
+  const el = e.currentTarget;
+  if (!el.hasAttribute('readonly')) return;
+  // Senza preventDefault(), il browser esegue comunque la sua azione di
+  // default per mousedown/touchstart DOPO questo listener: riposiziona il
+  // cursore in base al punto toccato, annullando la selezione fatta da
+  // fillNotesDefaultOnFocus (quindi digitare non sostituiva più la proposta,
+  // ma si accodava dopo). Da qui in poi il focus lo gestiamo noi.
+  e.preventDefault();
+  el.removeAttribute('readonly');
+  el.focus();
+}
+['f-notes', 'fr-notes', 'mv-notes'].forEach(id => {
+  const el = document.getElementById(id);
+  el.addEventListener('touchstart', enableNotesFieldOnTouch);
+  el.addEventListener('mousedown', enableNotesFieldOnTouch);
+});
+
 // ---------- Sheet vs tastiera su iOS ----------
 // Su iOS Safari gli elementi "position:fixed" restano ancorati al viewport di
-// LAYOUT, che non si restringe quando compare la tastiera: i campi più in
-// basso in una sheet (es. le note) possono finire nascosti dietro la
-// tastiera. Il ridimensionamento manuale della sheet in base al visual
-// viewport si è rivelato instabile su iOS reale (calcolo dell'altezza della
-// tastiera inconsistente, causava uno scatto verso l'alto anche toccando
-// campi già visibili in cima alla sheet), quindi è stato rimosso: ci si
-// affida invece al solo scrollIntoView qui sotto, che scorre unicamente il
-// contenitore interno della sheet (che ha overflow-y:auto) e solo per il
-// minimo necessario a rendere visibile il campo toccato ("nearest": nessun
-// salto se il campo è già visibile, a differenza di "center").
+// LAYOUT, che non si restringe quando compare la tastiera (si restringe solo
+// il "visual viewport"): il browser quindi non "sa" che la tastiera coprirebbe
+// i campi più in basso in una sheet (es. le note), e scrollIntoView da solo
+// non basta perché ragiona sul layout, non su cosa sia davvero visibile a
+// schermo. Bisogna quindi risollevare la sheet aperta di quanto serve.
+// (Un primo tentativo causava uno scatto anche toccando campi già visibili
+// in alto: era dovuto a scrollIntoView con block:"center", che ri-centrava
+// forzatamente qualsiasi campo. Usando "nearest" — che scorre solo il minimo
+// indispensabile — il riposizionamento qui sotto e lo scroll si combinano
+// senza più quel problema.)
+function adjustOpenSheetForKeyboard() {
+  if (!window.visualViewport) return;
+  const openSheet = document.querySelector('.sheet.show');
+  if (!openSheet) return;
+  const keyboardHeight = Math.max(0, window.innerHeight - window.visualViewport.height);
+  openSheet.style.bottom = keyboardHeight + 'px';
+  openSheet.style.maxHeight = Math.round(window.visualViewport.height * 0.9) + 'px';
+}
+function resetSheetKeyboardOffset() {
+  document.querySelectorAll('.sheet').forEach(s => {
+    s.style.bottom = '';
+    s.style.maxHeight = '';
+  });
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', adjustOpenSheetForKeyboard);
+}
+// In più, porta sempre il campo appena toccato dentro alla parte visibile
+// della sheet, scorrendo solo il minimo necessario ("nearest": nessun salto
+// se il campo è già visibile).
 function scrollFieldIntoViewOnFocus(e) {
   setTimeout(() => {
     e.target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
