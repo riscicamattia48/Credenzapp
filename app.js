@@ -650,7 +650,6 @@ function closeAllSheets() {
   ['sheet-add', 'sheet-frigo', 'sheet-move', 'sheet-qty', 'sheet-sync'].forEach(id => {
     document.getElementById(id).classList.remove('show');
   });
-  resetSheetKeyboardOffset();
   state.frigoItemId = null;
   state.moveItemId = null;
   state.pendingSplit = null;
@@ -949,35 +948,19 @@ document.getElementById('mv-notes').addEventListener('focus', fillNotesDefaultOn
 
 // ---------- Sheet vs tastiera su iOS ----------
 // Su iOS Safari gli elementi "position:fixed" restano ancorati al viewport di
-// LAYOUT, che non si restringe quando compare la tastiera (si restringe solo
-// il "visual viewport"): risultato, i campi più in basso in una sheet (es. le
-// note) finiscono nascosti dietro la tastiera. Quando il visual viewport si
-// restringe, si risolleva la sheet aperta e se ne riduce l'altezza massima in
-// modo che resti tutta dentro la porzione di schermo davvero visibile.
-function adjustOpenSheetForKeyboard() {
-  if (!window.visualViewport) return;
-  const openSheet = document.querySelector('.sheet.show');
-  if (!openSheet) return;
-  const keyboardHeight = Math.max(0, window.innerHeight - window.visualViewport.height);
-  openSheet.style.bottom = keyboardHeight + 'px';
-  openSheet.style.maxHeight = Math.round(window.visualViewport.height * 0.9) + 'px';
-}
-function resetSheetKeyboardOffset() {
-  document.querySelectorAll('.sheet').forEach(s => {
-    s.style.bottom = '';
-    s.style.maxHeight = '';
-  });
-}
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', adjustOpenSheetForKeyboard);
-}
-// In più, porta sempre il campo appena toccato dentro alla parte visibile
-// della sheet: utile perché l'apertura della tastiera (ed eventuali barre di
-// suggerimento di iOS sopra di essa) può coprire un campo anche quando la
-// sheet è già stata ridimensionata.
+// LAYOUT, che non si restringe quando compare la tastiera: i campi più in
+// basso in una sheet (es. le note) possono finire nascosti dietro la
+// tastiera. Il ridimensionamento manuale della sheet in base al visual
+// viewport si è rivelato instabile su iOS reale (calcolo dell'altezza della
+// tastiera inconsistente, causava uno scatto verso l'alto anche toccando
+// campi già visibili in cima alla sheet), quindi è stato rimosso: ci si
+// affida invece al solo scrollIntoView qui sotto, che scorre unicamente il
+// contenitore interno della sheet (che ha overflow-y:auto) e solo per il
+// minimo necessario a rendere visibile il campo toccato ("nearest": nessun
+// salto se il campo è già visibile, a differenza di "center").
 function scrollFieldIntoViewOnFocus(e) {
   setTimeout(() => {
-    e.target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    e.target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, 300);
 }
 document.querySelectorAll('.sheet input, .sheet select').forEach(el => {

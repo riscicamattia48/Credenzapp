@@ -45,6 +45,10 @@
   input,select,textarea{background:var(--card2);color:var(--text);border:1px solid var(--border);
     border-radius:10px;padding:10px 12px;font-size:16px;width:100%;height:44px;box-sizing:border-box;}
   input[type="date"]{padding:0 12px;-webkit-appearance:none;appearance:none;line-height:normal;}
+  /* type="search" (usato per il campo note, vedi sotto) non deve avere
+     l'aspetto nativo "a pillola" di iOS: lo riportiamo uguale agli altri campi. */
+  input[type="search"]{-webkit-appearance:none;appearance:none;}
+  input[type="search"]::-webkit-search-cancel-button{-webkit-appearance:none;}
   .searchbar input{flex:1;}
   .summary{display:flex;gap:8px;margin-bottom:14px;}
   .pill{flex:1;background:var(--card);border:1px solid var(--border);border-radius:12px;
@@ -196,7 +200,7 @@
   </div>
   <div class="field">
     <label>Note (opzionale)</label>
-    <input id="f-notes" type="text" inputmode="text" autocomplete="off" autocorrect="off" name="nota-alimento" placeholder="Es. aperto il gg/mm">
+    <input id="f-notes" type="search" inputmode="text" autocomplete="off" autocorrect="off" name="nota-alimento" placeholder="Es. aperto il gg/mm">
   </div>
   <div class="btnrow">
     <button class="secondary" id="btn-add-cancel">Annulla</button>
@@ -217,7 +221,7 @@
   </div>
   <div class="field">
     <label>Note (opzionale)</label>
-    <input id="fr-notes" type="text" inputmode="text" autocomplete="off" autocorrect="off" name="nota-alimento" placeholder="Es. aperto il gg/mm">
+    <input id="fr-notes" type="search" inputmode="text" autocomplete="off" autocorrect="off" name="nota-alimento" placeholder="Es. aperto il gg/mm">
   </div>
   <div class="btnrow">
     <button class="secondary" id="btn-frigo-cancel">Annulla</button>
@@ -236,7 +240,7 @@
     </div>
     <div class="field">
       <label>Note (opzionale)</label>
-      <input id="mv-notes" type="text" inputmode="text" autocomplete="off" autocorrect="off" name="nota-alimento" placeholder="Es. aperto il gg/mm">
+      <input id="mv-notes" type="search" inputmode="text" autocomplete="off" autocorrect="off" name="nota-alimento" placeholder="Es. aperto il gg/mm">
     </div>
     <button class="secondary" id="btn-move-frigo" style="width:100%;margin-bottom:8px;">Sposta in Frigo</button>
     <button class="secondary" id="btn-move-other" style="width:100%;margin-bottom:8px;">Sposta in altra sezione</button>
