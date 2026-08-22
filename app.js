@@ -170,10 +170,15 @@ function render() {
     list.innerHTML = '<div class="empty">Nessun risultato.</div>';
   }
 }
+// Ordina prima per scadenza (chi scade prima sta più in alto); gli alimenti
+// senza scadenza vanno in fondo, ma in ordine alfabetico tra loro invece che
+// nell'ordine in cui sono stati aggiunti (altrimenti un nuovo alimento senza
+// scadenza finirebbe sempre in coda anziché al suo posto alfabetico).
 function sortByExpiry(a, b) {
   const da = a.expiry ? new Date(a.expiry) : new Date('9999-12-31');
   const db = b.expiry ? new Date(b.expiry) : new Date('9999-12-31');
-  return da - db;
+  if (da - db !== 0) return da - db;
+  return a.name.localeCompare(b.name, 'it', { sensitivity: 'base' });
 }
 function renderItemRow(it) {
   const row = document.createElement('div');
@@ -645,6 +650,7 @@ function closeAllSheets() {
   ['sheet-add', 'sheet-frigo', 'sheet-move', 'sheet-qty', 'sheet-sync'].forEach(id => {
     document.getElementById(id).classList.remove('show');
   });
+  resetSheetKeyboardOffset();
   state.frigoItemId = null;
   state.moveItemId = null;
   state.pendingSplit = null;
@@ -940,6 +946,43 @@ function fillNotesDefaultOnFocus(e) {
 document.getElementById('f-notes').addEventListener('focus', fillNotesDefaultOnFocus);
 document.getElementById('fr-notes').addEventListener('focus', fillNotesDefaultOnFocus);
 document.getElementById('mv-notes').addEventListener('focus', fillNotesDefaultOnFocus);
+
+// ---------- Sheet vs tastiera su iOS ----------
+// Su iOS Safari gli elementi "position:fixed" restano ancorati al viewport di
+// LAYOUT, che non si restringe quando compare la tastiera (si restringe solo
+// il "visual viewport"): risultato, i campi più in basso in una sheet (es. le
+// note) finiscono nascosti dietro la tastiera. Quando il visual viewport si
+// restringe, si risolleva la sheet aperta e se ne riduce l'altezza massima in
+// modo che resti tutta dentro la porzione di schermo davvero visibile.
+function adjustOpenSheetForKeyboard() {
+  if (!window.visualViewport) return;
+  const openSheet = document.querySelector('.sheet.show');
+  if (!openSheet) return;
+  const keyboardHeight = Math.max(0, window.innerHeight - window.visualViewport.height);
+  openSheet.style.bottom = keyboardHeight + 'px';
+  openSheet.style.maxHeight = Math.round(window.visualViewport.height * 0.9) + 'px';
+}
+function resetSheetKeyboardOffset() {
+  document.querySelectorAll('.sheet').forEach(s => {
+    s.style.bottom = '';
+    s.style.maxHeight = '';
+  });
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', adjustOpenSheetForKeyboard);
+}
+// In più, porta sempre il campo appena toccato dentro alla parte visibile
+// della sheet: utile perché l'apertura della tastiera (ed eventuali barre di
+// suggerimento di iOS sopra di essa) può coprire un campo anche quando la
+// sheet è già stata ridimensionata.
+function scrollFieldIntoViewOnFocus(e) {
+  setTimeout(() => {
+    e.target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, 300);
+}
+document.querySelectorAll('.sheet input, .sheet select').forEach(el => {
+  el.addEventListener('focus', scrollFieldIntoViewOnFocus);
+});
 
 document.getElementById('backdrop').addEventListener('click', closeAllSheets);
 document.getElementById('btn-scan').addEventListener('click', openScanner);
