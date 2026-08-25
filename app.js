@@ -867,15 +867,55 @@ function capitalizeFirst(s) {
   if (!s) return s;
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+// Alcuni scanner/etichette usano il formato UPC-A a 12 cifre, ma Open Food
+// Facts spesso archivia lo stesso prodotto come EAN-13 (12 cifre + uno "0"
+// iniziale) o viceversa: se la prima ricerca non trova nulla, si ritenta col
+// codice nell'altro formato prima di arrendersi e mostrare solo il codice.
+function alternateBarcodeCandidates(code) {
+  const candidates = [];
+  if (/^0\d{12}$/.test(code)) candidates.push(code.slice(1));
+  else if (/^\d{12}$/.test(code)) candidates.push('0' + code);
+  return candidates;
+}
+async function fetchProduct(code) {
+  const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
+  return res.json();
+}
+// Il campo "product_name" di Open Food Facts è spesso vuoto anche per marchi
+// notissimi (es. Pepsi), che però hanno il nome compilato solo in una
+// variante linguistica (product_name_en, product_name_it, ...) o, in
+// mancanza d'altro, solo il campo "brands". Prima di arrendersi e mostrare
+// il codice a barre al posto del nome, si prova ciascuna di queste
+// alternative, nell'ordine più probabile per un'utenza italiana.
+function pickProductName(p) {
+  if (p.product_name) return p.product_name;
+  if (p.product_name_it) return p.product_name_it;
+  if (p.product_name_en) return p.product_name_en;
+  const anyLangKey = Object.keys(p).find(k => /^product_name_/.test(k) && p[k]);
+  if (anyLangKey) return p[anyLangKey];
+  if (p.generic_name) return p.generic_name;
+  if (p.brands) return p.brands.split(',')[0].trim();
+  return null;
+}
 async function onScanSuccess(decodedText) {
   closeScanner();
   showToast('Codice letto, ricerca prodotto...');
   try {
-    const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${decodedText}.json`);
-    const json = await res.json();
+    let json = await fetchProduct(decodedText);
+    if (!(json.status === 1 && json.product)) {
+      const alternatives = alternateBarcodeCandidates(decodedText);
+      for (const alt of alternatives) {
+        const altJson = await fetchProduct(alt);
+        if (altJson.status === 1 && altJson.product) {
+          json = altJson;
+          break;
+        }
+      }
+    }
     if (json.status === 1 && json.product) {
       const p = json.product;
-      document.getElementById('f-name').value = capitalizeFirst(p.product_name || p.generic_name || decodedText);
+      const name = pickProductName(p) || decodedText;
+      document.getElementById('f-name').value = capitalizeFirst(name);
       const n = p.nutriments || {};
       const prot = parseFloat(n['proteins_100g']) || 0;
       const carb = parseFloat(n['carbohydrates_100g']) || 0;
@@ -885,7 +925,7 @@ async function onScanSuccess(decodedText) {
       else if (carb >= prot && carb >= fat && carb > 0) guess = 'Carboidrati';
       else if (fat > 0) guess = 'Grassi';
       document.getElementById('f-cat').value = guess;
-      showToast('Prodotto trovato: ' + capitalizeFirst(p.product_name || 'senza nome'));
+      showToast('Prodotto trovato: ' + capitalizeFirst(name));
     } else {
       document.getElementById('f-name').value = decodedText;
       showToast('Prodotto non trovato nel database, nome impostato al codice');
