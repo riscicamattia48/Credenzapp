@@ -164,70 +164,96 @@
 <!-- Aggiunta nuovo alimento -->
 <div class="sheet" id="sheet-add">
   <h3>Nuovo alimento</h3>
-  <button class="scanbtn" id="btn-scan">📷 Scansiona codice a barre</button>
-  <div class="field">
-    <label>Alimento</label>
-    <input id="f-name" type="text" placeholder="Es. Petto di pollo">
-  </div>
-  <div class="field">
-    <label>Note (opzionale)</label>
-    <input id="f-notes" type="search" inputmode="text" autocomplete="off" autocorrect="off" name="nota-alimento" placeholder="Es. aperto il gg/mm" readonly>
-  </div>
-  <div class="row2">
+  <div id="add-main">
+    <button class="scanbtn" id="btn-scan">📷 Scansiona codice a barre</button>
     <div class="field">
-      <label>Luogo</label>
-      <select id="f-loc">
-        <option value="frigo">Frigo</option>
-        <option value="dispensa">Dispensa</option>
-        <option value="cantina">Cantina</option>
-      </select>
+      <label>Alimento</label>
+      <input id="f-name" type="text" placeholder="Es. Petto di pollo">
     </div>
-    <div class="field" id="field-cat">
-      <label>Categoria</label>
-      <select id="f-cat">
-        <option value="Proteine">🥩 Proteine</option>
-        <option value="Carboidrati">🍝 Carboidrati</option>
-        <option value="Grassi">🫒 Grassi</option>
-        <option value="Altro">🥫 Altro</option>
-      </select>
+    <div class="field">
+      <label>Note (opzionale)</label>
+      <input id="f-notes" type="search" inputmode="text" autocomplete="off" autocorrect="off" name="nota-alimento" placeholder="Es. aperto il gg/mm" readonly>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Luogo</label>
+        <select id="f-loc">
+          <option value="frigo">Frigo</option>
+          <option value="dispensa">Dispensa</option>
+          <option value="cantina">Cantina</option>
+        </select>
+      </div>
+      <div class="field" id="field-cat">
+        <label>Categoria</label>
+        <select id="f-cat">
+          <option value="Proteine">🥩 Proteine</option>
+          <option value="Carboidrati">🍝 Carboidrati</option>
+          <option value="Grassi">🫒 Grassi</option>
+          <option value="Altro">🥫 Altro</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Quantità</label>
+        <input id="f-qty" type="number" min="1" step="1" placeholder="1">
+      </div>
+      <div class="field" id="field-exp">
+        <label id="label-f-exp">Scadenza</label>
+        <input id="f-exp" type="date">
+      </div>
+    </div>
+    <div class="btnrow">
+      <button class="secondary" id="btn-add-cancel">Annulla</button>
+      <button class="primary" id="btn-add-save">Salva</button>
     </div>
   </div>
-  <div class="row2">
+  <div id="add-expiry-step" style="display:none;">
+    <p style="color:var(--muted);font-size:13px;margin-top:0;">In Frigo la scadenza è obbligatoria: indicala per salvare l'alimento.</p>
     <div class="field">
-      <label>Quantità</label>
-      <input id="f-qty" type="number" min="1" step="1" placeholder="1">
-    </div>
-    <div class="field" id="field-exp">
       <label>Scadenza</label>
-      <input id="f-exp" type="date">
+      <input id="f-exp-step" type="date">
     </div>
-  </div>
-  <div class="btnrow">
-    <button class="secondary" id="btn-add-cancel">Annulla</button>
-    <button class="primary" id="btn-add-save">Salva</button>
+    <div class="btnrow">
+      <button class="secondary" id="btn-add-expiry-back">Indietro</button>
+      <button class="primary" id="btn-add-expiry-confirm">Conferma</button>
+    </div>
   </div>
 </div>
 
 <!-- Modifica rapida alimento in Frigo -->
 <div class="sheet" id="sheet-frigo">
   <h3>Modifica alimento</h3>
-  <div class="field">
-    <label>Alimento</label>
-    <input id="fr-name" type="text">
+  <div id="frigo-main">
+    <div class="field">
+      <label>Alimento</label>
+      <input id="fr-name" type="text">
+    </div>
+    <div class="field">
+      <label>Note (opzionale)</label>
+      <input id="fr-notes" type="search" inputmode="text" autocomplete="off" autocorrect="off" name="nota-alimento" placeholder="Es. aperto il gg/mm" readonly>
+    </div>
+    <div class="field">
+      <label>Scadenza</label>
+      <input id="fr-exp" type="date">
+    </div>
+    <div class="btnrow">
+      <button class="secondary" id="btn-frigo-cancel">Annulla</button>
+      <button class="primary" id="btn-frigo-save">Salva</button>
+    </div>
+    <button class="danger" id="btn-frigo-delete">Rimuovi alimento</button>
   </div>
-  <div class="field">
-    <label>Note (opzionale)</label>
-    <input id="fr-notes" type="search" inputmode="text" autocomplete="off" autocorrect="off" name="nota-alimento" placeholder="Es. aperto il gg/mm" readonly>
+  <div id="frigo-expiry-step" style="display:none;">
+    <p style="color:var(--muted);font-size:13px;margin-top:0;">In Frigo la scadenza è obbligatoria: indicala per salvare le modifiche.</p>
+    <div class="field">
+      <label>Scadenza</label>
+      <input id="fr-exp-step" type="date">
+    </div>
+    <div class="btnrow">
+      <button class="secondary" id="btn-frigo-expiry-back">Indietro</button>
+      <button class="primary" id="btn-frigo-expiry-confirm">Conferma</button>
+    </div>
   </div>
-  <div class="field">
-    <label>Scadenza</label>
-    <input id="fr-exp" type="date">
-  </div>
-  <div class="btnrow">
-    <button class="secondary" id="btn-frigo-cancel">Annulla</button>
-    <button class="primary" id="btn-frigo-save">Salva</button>
-  </div>
-  <button class="danger" id="btn-frigo-delete">Rimuovi alimento</button>
 </div>
 
 <!-- Sposta / rinomina / rimuovi alimento in Dispensa o Cantina -->
@@ -241,6 +267,10 @@
     <div class="field">
       <label>Note (opzionale)</label>
       <input id="mv-notes" type="search" inputmode="text" autocomplete="off" autocorrect="off" name="nota-alimento" placeholder="Es. aperto il gg/mm" readonly>
+    </div>
+    <div class="field">
+      <label>Scadenza (opzionale)</label>
+      <input id="mv-exp-self" type="date">
     </div>
     <button class="secondary" id="btn-move-frigo" style="width:100%;margin-bottom:8px;">Sposta in Frigo</button>
     <button class="secondary" id="btn-move-other" style="width:100%;margin-bottom:8px;">Sposta in altra sezione</button>

@@ -207,8 +207,9 @@ function escapeHtml(s) {
 function toggleFieldsByLoc(locValue) {
   // La categoria (macronutriente) serve solo in Dispensa/Cantina.
   document.getElementById('field-cat').style.display = locValue === 'frigo' ? 'none' : 'block';
-  // La scadenza si gestisce solo in Frigo: in Dispensa/Cantina non si compila.
-  document.getElementById('field-exp').style.display = locValue === 'frigo' ? 'block' : 'none';
+  // La scadenza si può indicare ovunque, ma solo in Frigo è la norma: in
+  // Dispensa/Cantina la etichettiamo esplicitamente come facoltativa.
+  document.getElementById('label-f-exp').textContent = locValue === 'frigo' ? 'Scadenza' : 'Scadenza (opzionale)';
 }
 function openAddSheet() {
   document.getElementById('f-name').value = '';
@@ -221,7 +222,34 @@ function openAddSheet() {
   document.getElementById('f-notes').setAttribute('readonly', '');
   delete document.getElementById('f-notes').dataset.isProposal;
   toggleFieldsByLoc(state.loc);
+  document.getElementById('add-main').style.display = 'block';
+  document.getElementById('add-expiry-step').style.display = 'none';
   showSheet('sheet-add');
+}
+// Se si sta aggiungendo in Frigo senza aver indicato la scadenza, non si
+// salva silenziosamente senza data: si mostra uno step dedicato che la
+// richiede esplicitamente, sullo stesso modello di "Sposta in Frigo" da
+// Dispensa/Cantina (vedi showMoveToFrigoStep/confirmMoveToFrigo).
+function promptAddExpiry() {
+  document.getElementById('f-exp-step').value = '';
+  document.getElementById('add-main').style.display = 'none';
+  document.getElementById('add-expiry-step').style.display = 'block';
+  document.getElementById('f-exp-step').focus();
+}
+function backFromAddExpiry() {
+  document.getElementById('add-main').style.display = 'block';
+  document.getElementById('add-expiry-step').style.display = 'none';
+}
+function confirmAddExpiry() {
+  const exp = document.getElementById('f-exp-step').value;
+  if (!exp) {
+    showToast('Inserisci una data di scadenza');
+    return;
+  }
+  document.getElementById('f-exp').value = exp;
+  document.getElementById('add-main').style.display = 'block';
+  document.getElementById('add-expiry-step').style.display = 'none';
+  saveAdd();
 }
 function saveAdd() {
   const name = document.getElementById('f-name').value.trim();
@@ -234,16 +262,25 @@ function saveAdd() {
   const items = loadItems();
   const qtyRaw = parseInt(document.getElementById('f-qty').value, 10);
   const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : 1;
-  const expiry = loc === 'frigo' ? document.getElementById('f-exp').value : '';
+  // La scadenza si può indicare in qualsiasi sezione: in Frigo resta
+  // obbligatoria (vedi promptAddExpiry), in Dispensa/Cantina è facoltativa
+  // (il campo può restare vuoto).
+  const expiry = document.getElementById('f-exp').value;
   const notes = document.getElementById('f-notes').value.trim();
+  if (loc === 'frigo' && !expiry) {
+    promptAddExpiry();
+    return;
+  }
 
   // Se lo stesso alimento è già presente nella stessa sezione (stesso nome,
-  // stessa scadenza in Frigo o stessa categoria in Dispensa/Cantina), si
-  // somma la quantità alla voce esistente invece di creare una riga duplicata.
+  // stessa scadenza, e stessa categoria in Dispensa/Cantina), si somma la
+  // quantità alla voce esistente invece di creare una riga duplicata: due
+  // scadenze diverse restano invece due righe separate, anche in Dispensa/Cantina.
   const existing = items.find(it => {
     if (it.loc !== loc) return false;
     if (it.name.trim().toLowerCase() !== name.toLowerCase()) return false;
-    return loc === 'frigo' ? (it.expiry || '') === (expiry || '') : it.cat === cat;
+    if ((it.expiry || '') !== (expiry || '')) return false;
+    return loc === 'frigo' ? true : it.cat === cat;
   });
 
   if (existing) {
@@ -291,7 +328,32 @@ function openFrigoSheet(it) {
   document.getElementById('fr-notes').placeholder = `Es. ${defaultNotesText()}`;
   document.getElementById('fr-notes').setAttribute('readonly', '');
   delete document.getElementById('fr-notes').dataset.isProposal;
+  document.getElementById('frigo-main').style.display = 'block';
+  document.getElementById('frigo-expiry-step').style.display = 'none';
   showSheet('sheet-frigo');
+}
+// Come promptAddExpiry, ma per la modifica di un alimento già in Frigo: non
+// si può salvare svuotando la scadenza, va richiesta esplicitamente.
+function promptFrigoExpiry() {
+  document.getElementById('fr-exp-step').value = '';
+  document.getElementById('frigo-main').style.display = 'none';
+  document.getElementById('frigo-expiry-step').style.display = 'block';
+  document.getElementById('fr-exp-step').focus();
+}
+function backFromFrigoExpiry() {
+  document.getElementById('frigo-main').style.display = 'block';
+  document.getElementById('frigo-expiry-step').style.display = 'none';
+}
+function confirmFrigoExpiry() {
+  const exp = document.getElementById('fr-exp-step').value;
+  if (!exp) {
+    showToast('Inserisci una data di scadenza');
+    return;
+  }
+  document.getElementById('fr-exp').value = exp;
+  document.getElementById('frigo-main').style.display = 'block';
+  document.getElementById('frigo-expiry-step').style.display = 'none';
+  saveFrigo();
 }
 function saveFrigo() {
   const name = document.getElementById('fr-name').value.trim();
@@ -301,6 +363,10 @@ function saveFrigo() {
   }
   const newExpiry = document.getElementById('fr-exp').value;
   const notes = document.getElementById('fr-notes').value.trim();
+  if (!newExpiry) {
+    promptFrigoExpiry();
+    return;
+  }
   const items = loadItems();
   const it = items.find(x => x.id === state.frigoItemId);
   if (!it) {
@@ -405,6 +471,7 @@ function openMoveSheet(it) {
   document.getElementById('mv-notes').placeholder = `Es. ${defaultNotesText()}`;
   document.getElementById('mv-notes').setAttribute('readonly', '');
   delete document.getElementById('mv-notes').dataset.isProposal;
+  document.getElementById('mv-exp-self').value = it.expiry || '';
   const other = PANTRY_LOCS.find(l => l !== it.loc);
   document.getElementById('btn-move-other').textContent = `Sposta in ${LOC_LABEL[other]}`;
   document.getElementById('move-main').style.display = 'block';
@@ -418,11 +485,63 @@ function saveMoveName() {
     return;
   }
   const notes = document.getElementById('mv-notes').value.trim();
+  // Scadenza facoltativa anche qui: il campo può restare vuoto.
+  const newExpiry = document.getElementById('mv-exp-self').value;
   const items = loadItems();
+  const it = items.find(x => x.id === state.moveItemId);
+  if (!it) {
+    closeAllSheets();
+    render();
+    return;
+  }
+  // Stesso comportamento del Frigo: se ci sono più pezzi con la stessa
+  // scadenza e la si cambia, si chiede per quanti vale la nuova data,
+  // separando gli altri in una voce a parte con la scadenza originale.
+  const total = getTotalQty(it);
+  const expiryChanged = (it.expiry || '') !== (newExpiry || '');
+  if (total > 1 && expiryChanged) {
+    openQtySheet({
+      total,
+      title: 'Per quanti pezzi vale la nuova scadenza?',
+      desc: `"${it.name}" ha ${total} pezzi con la stessa scadenza. Indica per quanti aggiornarla: gli altri manterranno la scadenza originale e appariranno come voce separata.`,
+      onConfirm: (chosen) => {
+        const items2 = loadItems();
+        const idx = items2.findIndex(x => x.id === it.id);
+        if (idx >= 0) {
+          const cur = items2[idx];
+          const curTotal = getTotalQty(cur);
+          if (chosen >= curTotal) {
+            cur.name = name;
+            cur.expiry = newExpiry;
+            cur.notes = notes;
+          } else {
+            cur.name = name;
+            cur.qty = String(curTotal - chosen);
+            cur.notes = notes;
+            items2.push({
+              id: uid(),
+              name,
+              loc: cur.loc,
+              cat: cur.cat,
+              qty: String(chosen),
+              expiry: newExpiry,
+              notes,
+              added: Date.now(),
+            });
+          }
+          persistItems(items2);
+        }
+        closeAllSheets();
+        render();
+      },
+    });
+    return;
+  }
   const idx = items.findIndex(x => x.id === state.moveItemId);
   if (idx >= 0) {
     items[idx].name = name;
     items[idx].notes = notes;
+    items[idx].expiry = newExpiry;
     persistItems(items);
   }
   closeAllSheets();
@@ -463,7 +582,7 @@ function moveToOtherPantry() {
               loc: other,
               cat: cur.cat,
               qty: String(chosen),
-              expiry: '',
+              expiry: cur.expiry || '',
               notes,
               added: Date.now(),
             });
@@ -954,10 +1073,14 @@ document.getElementById('f-loc').addEventListener('change', e => toggleFieldsByL
 document.getElementById('btn-add').addEventListener('click', openAddSheet);
 document.getElementById('btn-add-cancel').addEventListener('click', closeAllSheets);
 document.getElementById('btn-add-save').addEventListener('click', saveAdd);
+document.getElementById('btn-add-expiry-back').addEventListener('click', backFromAddExpiry);
+document.getElementById('btn-add-expiry-confirm').addEventListener('click', confirmAddExpiry);
 
 document.getElementById('btn-frigo-cancel').addEventListener('click', closeAllSheets);
 document.getElementById('btn-frigo-save').addEventListener('click', saveFrigo);
 document.getElementById('btn-frigo-delete').addEventListener('click', deleteFrigo);
+document.getElementById('btn-frigo-expiry-back').addEventListener('click', backFromFrigoExpiry);
+document.getElementById('btn-frigo-expiry-confirm').addEventListener('click', confirmFrigoExpiry);
 
 document.getElementById('btn-move-frigo').addEventListener('click', showMoveToFrigoStep);
 document.getElementById('btn-move-other').addEventListener('click', moveToOtherPantry);
