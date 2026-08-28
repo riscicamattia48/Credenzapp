@@ -1,4 +1,4 @@
-const CACHE = 'credenzapp-cache-v19';
+const CACHE = 'credenzapp-cache-v20';
 const ASSETS = ['./', './index.html', './app.js', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', event => {

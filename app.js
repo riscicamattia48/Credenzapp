@@ -801,7 +801,12 @@ function getSyncToken() { return localStorage.getItem(SYNC_TOKEN_KEY) || ''; }
 async function syncToGist(items) {
   const token = getSyncToken();
   if (!token) return; // sincronizzazione non configurata, nessuna azione
-  const content = JSON.stringify(items, null, 2);
+  // Si sincronizza una copia ordinata per scadenza (chi scade prima/è già
+  // scaduto per primo), la stessa logica usata per la lista in Frigo:
+  // lo Shortcut delle 10 legge questo JSON così com'è e ne elenca il
+  // contenuto nell'ordine in cui lo trova, senza riordinarlo da solo.
+  const sorted = [...items].sort(sortByExpiry);
+  const content = JSON.stringify(sorted, null, 2);
   const headers = {
     'Authorization': 'Bearer ' + token,
     'Accept': 'application/vnd.github+json',
