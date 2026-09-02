@@ -17,27 +17,16 @@ let state = {
 };
 
 // ---------- Categorie compattate/espanse (solo Dispensa/Cantina) ----------
-// Ricordata tra le sessioni: di default tutte le categorie partono compattate.
-const EXPANDED_CATS_KEY = 'dispensa.expandedCats.v1';
-function loadExpandedCats() {
-  try {
-    const raw = localStorage.getItem(EXPANDED_CATS_KEY);
-    return raw ? new Set(JSON.parse(raw)) : new Set();
-  } catch (e) {
-    return new Set();
-  }
-}
-function saveExpandedCats(set) {
-  localStorage.setItem(EXPANDED_CATS_KEY, JSON.stringify([...set]));
-}
-let expandedCats = loadExpandedCats();
+// Volutamente NON persistita da una sessione all'altra: a ogni avvio
+// dell'app tutte le categorie ripartono compattate. Restano comunque
+// espandibili/ricompattabili liberamente finché l'app resta aperta.
+let expandedCats = new Set();
 function toggleCat(key) {
   if (expandedCats.has(key)) {
     expandedCats.delete(key);
   } else {
     expandedCats.add(key);
   }
-  saveExpandedCats(expandedCats);
   render();
 }
 
