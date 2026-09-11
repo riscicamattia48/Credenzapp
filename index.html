@@ -44,7 +44,12 @@
   .searchbar{display:flex;gap:8px;margin-bottom:10px;}
   input,select,textarea{background:var(--card2);color:var(--text);border:1px solid var(--border);
     border-radius:10px;padding:10px 12px;font-size:16px;width:100%;height:44px;box-sizing:border-box;}
-  input[type="date"]{padding:0 12px;-webkit-appearance:none;appearance:none;line-height:normal;}
+  /* Su iOS Safari il controllo nativo della data non rispetta la normale
+     line-height dei campi testo e il testo interno può finire disallineato
+     verticalmente rispetto ai campi accanto (es. Quantità): rendendolo un
+     contenitore flex centrato verticalmente si forza l'allineamento. */
+  input[type="date"]{padding:0 12px;-webkit-appearance:none;appearance:none;line-height:normal;
+    display:flex;align-items:center;}
   /* type="search" (usato per il campo note, vedi sotto) non deve avere
      l'aspetto nativo "a pillola" di iOS: lo riportiamo uguale agli altri campi. */
   input[type="search"]{-webkit-appearance:none;appearance:none;}
