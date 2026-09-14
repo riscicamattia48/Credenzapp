@@ -45,9 +45,59 @@ function saveItems(items) {
 }
 // Salva in locale e, se configurata, sincronizza anche verso il Gist GitHub
 // usato dallo Shortcut per la notifica delle 10.
-function persistItems(items) {
+// `actionLabel` descrive l'azione appena fatta (es. 'Aggiunto "Latte"') e
+// viene ricordata per poterla eventualmente annullare (vedi sezione
+// "Annulla ultima azione" più sotto).
+function persistItems(items, actionLabel) {
+  const prevRaw = localStorage.getItem(STORAGE_KEY); // stato subito prima di questa modifica
   saveItems(items);
+  lastUndo = { prevRaw, label: actionLabel || 'Modifica' };
+  updateUndoMenuEntry();
   syncToGist(items);
+}
+
+// ---------- Annulla ultima azione ----------
+// Tiene traccia solo dell'ULTIMA modifica (aggiunta/modifica/eliminazione/
+// spostamento/importazione) per poterla annullare con un tap dal menu, o
+// scuotendo il telefono se l'opzione è attiva. Vive solo in memoria: si
+// perde chiudendo e riaprendo l'app, il che va bene perché serve solo a
+// rimediare a uno sbaglio appena fatto.
+let lastUndo = null; // { prevRaw: string|null, label: string }
+
+function updateUndoMenuEntry() {
+  const btn = document.getElementById('btn-undo');
+  if (!btn) return;
+  if (lastUndo) {
+    btn.style.display = 'block';
+    // Etichetta volutamente generica (senza il nome dell'alimento): il
+    // dettaglio dell'azione compare comunque nel messaggio di conferma dopo
+    // il tap, ed evitare di ripetere il nome qui nel menu (sempre presente
+    // nel DOM anche se nascosto) evita ambiguità con il nome stesso mostrato
+    // nell'elenco degli alimenti.
+    btn.textContent = '↩︎ Annulla ultima azione';
+    btn.title = lastUndo.label;
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function undoLastAction() {
+  if (!lastUndo) return;
+  const { prevRaw, label } = lastUndo;
+  if (prevRaw === null) {
+    localStorage.removeItem(STORAGE_KEY);
+  } else {
+    localStorage.setItem(STORAGE_KEY, prevRaw);
+  }
+  // Si sincronizza lo stato ripristinato, ma non si richiama persistItems()
+  // apposta: annullare non deve a sua volta generare una nuova voce
+  // "annullabile" (altrimenti si potrebbe annullare l'annullamento stesso).
+  syncToGist(loadItems());
+  lastUndo = null;
+  updateUndoMenuEntry();
+  closeAllSheets();
+  render();
+  showToast(`↩︎ Annullato: ${label}`);
 }
 function uid() {
   return 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -278,7 +328,7 @@ function saveAdd() {
     // (il campo non è mai rimasto vuoto per caso): altrimenti, aggiungendo un
     // duplicato solo per aumentarne la quantità, la nota già presente resta.
     if (notes) existing.notes = notes;
-    persistItems(items);
+    persistItems(items, `Aggiunto "${name}"`);
   } else {
     items.push({
       id: uid(),
@@ -290,7 +340,7 @@ function saveAdd() {
       notes,
       added: Date.now(),
     });
-    persistItems(items);
+    persistItems(items, `Aggiunto "${name}"`);
   }
   closeAllSheets();
   render();
@@ -395,7 +445,7 @@ function saveFrigo() {
               added: Date.now(),
             });
           }
-          persistItems(items2);
+          persistItems(items2, `Modificato "${name}"`);
         }
         closeAllSheets();
         render();
@@ -408,7 +458,7 @@ function saveFrigo() {
     items[idx].name = name;
     items[idx].expiry = newExpiry;
     items[idx].notes = notes;
-    persistItems(items);
+    persistItems(items, `Modificato "${name}"`);
   }
   closeAllSheets();
   render();
@@ -438,7 +488,7 @@ function deleteFrigo() {
           } else {
             cur.qty = String(curTotal - chosen);
           }
-          persistItems(items2);
+          persistItems(items2, `Eliminato "${it.name}"`);
         }
         closeAllSheets();
         render();
@@ -447,7 +497,7 @@ function deleteFrigo() {
     return;
   }
   const items2 = items.filter(x => x.id !== state.frigoItemId);
-  persistItems(items2);
+  persistItems(items2, `Eliminato "${it.name}"`);
   closeAllSheets();
   render();
 }
@@ -518,7 +568,7 @@ function saveMoveName() {
               added: Date.now(),
             });
           }
-          persistItems(items2);
+          persistItems(items2, `Modificato "${name}"`);
         }
         closeAllSheets();
         render();
@@ -531,7 +581,7 @@ function saveMoveName() {
     items[idx].name = name;
     items[idx].notes = notes;
     items[idx].expiry = newExpiry;
-    persistItems(items);
+    persistItems(items, `Modificato "${name}"`);
   }
   closeAllSheets();
   render();
@@ -576,7 +626,7 @@ function moveToOtherPantry() {
               added: Date.now(),
             });
           }
-          persistItems(items2);
+          persistItems(items2, `Spostato "${cur.name}"`);
         }
         closeAllSheets();
         render();
@@ -589,7 +639,7 @@ function moveToOtherPantry() {
     items[idx].loc = other;
     if (name) items[idx].name = name;
     items[idx].notes = notes;
-    persistItems(items);
+    persistItems(items, `Spostato "${items[idx].name}"`);
   }
   closeAllSheets();
   render();
@@ -650,7 +700,7 @@ function confirmMoveToFrigo() {
               added: Date.now(),
             });
           }
-          persistItems(items2);
+          persistItems(items2, `Spostato in Frigo "${cur.name}"`);
         }
         closeAllSheets();
         render();
@@ -664,7 +714,7 @@ function confirmMoveToFrigo() {
     items[idx].expiry = exp;
     if (name) items[idx].name = name;
     items[idx].notes = notes;
-    persistItems(items);
+    persistItems(items, `Spostato in Frigo "${items[idx].name}"`);
   }
   closeAllSheets();
   render();
@@ -694,7 +744,7 @@ function deleteFromMove() {
           } else {
             cur.qty = String(curTotal - chosen);
           }
-          persistItems(items2);
+          persistItems(items2, `Eliminato "${it.name}"`);
         }
         closeAllSheets();
         render();
@@ -703,7 +753,7 @@ function deleteFromMove() {
     return;
   }
   const items2 = items.filter(x => x.id !== state.moveItemId);
-  persistItems(items2);
+  persistItems(items2, `Eliminato "${it.name}"`);
   closeAllSheets();
   render();
 }
@@ -928,7 +978,7 @@ document.getElementById('btn-import').addEventListener('click', () => {
       try {
         const parsed = JSON.parse(reader.result);
         if (!Array.isArray(parsed)) throw new Error('formato non valido');
-        persistItems(parsed);
+        persistItems(parsed, 'Importazione');
         render();
         showToast('Importazione completata');
       } catch (e) {
@@ -1218,6 +1268,87 @@ document.getElementById('menu-dropdown').addEventListener('click', e => {
 document.addEventListener('click', () => {
   document.getElementById('menu-dropdown').classList.remove('show');
 });
+
+// ---------- Annulla ultima azione: voce nel menu ----------
+document.getElementById('btn-undo').addEventListener('click', () => {
+  undoLastAction();
+});
+updateUndoMenuEntry(); // nascosta finché non c'è ancora nulla da annullare
+
+// ---------- Scuoti per annullare (opzionale, richiede un permesso su iOS) ----------
+// Su iOS 13+ Safari (quindi anche nella PWA installata da Home) l'accesso ai
+// sensori di movimento (devicemotion) è dietro un permesso esplicito, che si
+// può richiedere SOLO in risposta diretta a un tap dell'utente: per questo
+// la richiesta parte dal tap sulla voce di menu, mai in automatico all'avvio.
+const SHAKE_PREF_KEY = 'dispensa.shakeUndo.enabled';
+const SHAKE_THRESHOLD = 18; // soglia di accelerazione (in m/s²) per contare come "scossone"
+const SHAKE_MIN_INTERVAL_MS = 1200; // tempo minimo tra due scuotimenti rilevati
+let lastShakeAt = 0;
+let shakeListenerActive = false;
+
+function isShakeUndoEnabled() {
+  return localStorage.getItem(SHAKE_PREF_KEY) === 'true';
+}
+function updateShakeToggleLabel() {
+  const btn = document.getElementById('btn-shake-toggle');
+  if (!btn) return;
+  btn.textContent = `📳 Scuoti per annullare: ${isShakeUndoEnabled() ? 'ON' : 'OFF'}`;
+}
+function handleDeviceMotion(e) {
+  const acc = e.accelerationIncludingGravity;
+  if (!acc) return;
+  const magnitude = Math.sqrt((acc.x || 0) ** 2 + (acc.y || 0) ** 2 + (acc.z || 0) ** 2);
+  const now = Date.now();
+  if (magnitude > SHAKE_THRESHOLD && now - lastShakeAt > SHAKE_MIN_INTERVAL_MS) {
+    lastShakeAt = now;
+    if (lastUndo) undoLastAction();
+  }
+}
+function startShakeListening() {
+  if (shakeListenerActive) return;
+  window.addEventListener('devicemotion', handleDeviceMotion);
+  shakeListenerActive = true;
+}
+function stopShakeListening() {
+  window.removeEventListener('devicemotion', handleDeviceMotion);
+  shakeListenerActive = false;
+}
+async function enableShakeUndo() {
+  if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+    try {
+      const result = await DeviceMotionEvent.requestPermission();
+      if (result !== 'granted') {
+        showToast('Permesso ai sensori di movimento negato');
+        return;
+      }
+    } catch (e) {
+      showToast('Impossibile richiedere il permesso ai sensori');
+      return;
+    }
+  }
+  localStorage.setItem(SHAKE_PREF_KEY, 'true');
+  startShakeListening();
+  updateShakeToggleLabel();
+  showToast('Scuoti per annullare attivato');
+}
+function disableShakeUndo() {
+  localStorage.setItem(SHAKE_PREF_KEY, 'false');
+  stopShakeListening();
+  updateShakeToggleLabel();
+  showToast('Scuoti per annullare disattivato');
+}
+document.getElementById('btn-shake-toggle').addEventListener('click', () => {
+  if (isShakeUndoEnabled()) {
+    disableShakeUndo();
+  } else {
+    enableShakeUndo();
+  }
+});
+// Se il permesso era già stato concesso in una sessione precedente (su
+// Android non serve nemmeno chiederlo) e la preferenza risulta attiva, si
+// riattacca subito l'ascolto senza dover richiedere nulla di nuovo.
+if (isShakeUndoEnabled()) startShakeListening();
+updateShakeToggleLabel();
 
 // ---------- PWA / Service worker ----------
 if ('serviceWorker' in navigator) {
