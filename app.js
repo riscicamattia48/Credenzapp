@@ -134,13 +134,22 @@ function expiryClass(dateStr) {
   if (days <= SOON_DAYS) return 'amber';
   return 'green';
 }
+// Converte una data "AAAA-MM-GG" (formato nativo dei campi data) nel
+// formato italiano gg/mm/aaaa, per mostrarla per esteso tra parentesi
+// accanto al conteggio dei giorni mancanti.
+function formatItDate(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-');
+  return `${d}/${m}/${y}`;
+}
 function expiryLabel(dateStr) {
   const days = daysUntil(dateStr);
   if (days === null) return 'senza scadenza';
-  if (days < 0) return `scaduto da ${Math.abs(days)}g`;
-  if (days === 0) return 'scade oggi';
-  if (days === 1) return 'scade domani';
-  return `scade tra ${days}g`;
+  const dateFmt = formatItDate(dateStr);
+  if (days < 0) return `scaduto da ${Math.abs(days)}g (${dateFmt})`;
+  if (days === 0) return `scade oggi (${dateFmt})`;
+  if (days === 1) return `scade domani (${dateFmt})`;
+  return `scade tra ${days}g (${dateFmt})`;
 }
 
 // ---------- Rendering ----------
@@ -1349,6 +1358,31 @@ document.getElementById('btn-shake-toggle').addEventListener('click', () => {
 // riattacca subito l'ascolto senza dover richiedere nulla di nuovo.
 if (isShakeUndoEnabled()) startShakeListening();
 updateShakeToggleLabel();
+
+// ---------- Data: il calendario si apre sempre sul giorno odierno ----------
+// Quando si modifica una scadenza già impostata, il selettore nativo la
+// aprirebbe di default sulla data già presente nel campo. Per farlo aprire
+// invece sempre sul giorno di oggi, la si svuota al tocco (subito prima che
+// il calendario compaia) e, se l'utente lo chiude senza scegliere una nuova
+// data, si ripristina quella originale invece di lasciare il campo vuoto.
+function openDatePickerOnToday(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  let originalValue = '';
+  input.addEventListener('focus', () => {
+    originalValue = input.value;
+    input.value = '';
+  });
+  input.addEventListener('blur', () => {
+    if (!input.value) {
+      input.value = originalValue;
+    }
+  });
+}
+// Solo i campi che possono precompilarsi con una scadenza già esistente:
+// "Modifica alimento" in Frigo, la propria scadenza in Dispensa/Cantina, e
+// lo step "Sposta in Frigo" (che riparte dalla scadenza attuale dell'alimento).
+['fr-exp', 'mv-exp-self', 'mv-exp'].forEach(openDatePickerOnToday);
 
 // ---------- PWA / Service worker ----------
 if ('serviceWorker' in navigator) {
