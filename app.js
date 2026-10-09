@@ -2,6 +2,9 @@
    Dati salvati in localStorage, nessun server coinvolto. */
 
 const STORAGE_KEY = 'dispensa.items.v1';
+const NAME_HISTORY_KEY = 'dispensa.nameHistory.v1'; // nomi già inseriti, per i suggerimenti
+const NAME_HISTORY_MAX = 500; // limite di sicurezza alla dimensione dello storico
+const NAME_SUGGESTIONS_MAX = 3; // quanti suggerimenti mostrare al massimo
 const CAT_EMOJI = { 'Proteine': '🥩', 'Carboidrati': '🍝', 'Grassi': '🫒', 'Altro': '🥫' };
 const CATS = Object.keys(CAT_EMOJI);
 const SOON_DAYS = 3; // entro quanti giorni un alimento è "in scadenza"
@@ -50,10 +53,83 @@ function saveItems(items) {
 // "Annulla ultima azione" più sotto).
 function persistItems(items, actionLabel) {
   const prevRaw = localStorage.getItem(STORAGE_KEY); // stato subito prima di questa modifica
+  // Anche lo storico dei nomi suggeriti viene ripristinato dall'annullamento
+  // (così annullando un'aggiunta sbagliata il suo nome non resta nei suggerimenti).
+  const prevHistoryRaw = localStorage.getItem(NAME_HISTORY_KEY);
   saveItems(items);
-  lastUndo = { prevRaw, label: actionLabel || 'Modifica' };
+  lastUndo = { prevRaw, prevHistoryRaw, label: actionLabel || 'Modifica' };
   updateUndoMenuEntry();
   syncToGist(items);
+}
+
+// ---------- Storico nomi e suggerimenti (campo "Alimento" del nuovo alimento) ----------
+// Si ricordano solo i NOMI degli alimenti inseriti (il più recente per primo,
+// senza doppioni a prescindere da maiuscole/minuscole). Restano anche dopo
+// che l'alimento viene eliminato dall'elenco. Al primo avvio dopo
+// l'introduzione della funzione lo storico si inizializza dagli alimenti già
+// presenti, dal più recente al meno recente.
+function loadNameHistory() {
+  try {
+    const raw = localStorage.getItem(NAME_HISTORY_KEY);
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter(n => typeof n === 'string' && n.trim()) : [];
+    }
+  } catch (e) {
+    console.error('Errore lettura storico nomi', e);
+    return [];
+  }
+  // Prima volta: si parte dagli alimenti già salvati.
+  const seen = new Set();
+  const seeded = [];
+  [...loadItems()]
+    .sort((a, b) => (b.added || 0) - (a.added || 0))
+    .forEach(it => {
+      const nm = (it && typeof it.name === 'string') ? it.name.trim() : '';
+      const key = nm.toLocaleLowerCase('it');
+      if (nm && !seen.has(key)) {
+        seen.add(key);
+        seeded.push(nm);
+      }
+    });
+  localStorage.setItem(NAME_HISTORY_KEY, JSON.stringify(seeded.slice(0, NAME_HISTORY_MAX)));
+  return seeded.slice(0, NAME_HISTORY_MAX);
+}
+function rememberName(name) {
+  const clean = (name || '').trim();
+  if (!clean) return;
+  const key = clean.toLocaleLowerCase('it');
+  const list = loadNameHistory().filter(n => n.toLocaleLowerCase('it') !== key);
+  list.unshift(clean); // il più recente per primo (con la grafia appena usata)
+  localStorage.setItem(NAME_HISTORY_KEY, JSON.stringify(list.slice(0, NAME_HISTORY_MAX)));
+}
+// Nomi salvati che INIZIANO con quanto digitato (senza distinguere maiuscole
+// e minuscole), dal più recente, al massimo NAME_SUGGESTIONS_MAX. Non si
+// propone un nome già scritto per intero.
+function getNameSuggestions(typed) {
+  const q = (typed || '').replace(/^\s+/, '').toLocaleLowerCase('it');
+  if (!q) return [];
+  return loadNameHistory()
+    .filter(n => {
+      const l = n.toLocaleLowerCase('it');
+      return l.startsWith(q) && l !== q;
+    })
+    .slice(0, NAME_SUGGESTIONS_MAX);
+}
+function renderNameSuggestions() {
+  const box = document.getElementById('name-suggestions');
+  if (!box) return;
+  const list = getNameSuggestions(document.getElementById('f-name').value);
+  box.textContent = '';
+  list.forEach(n => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'suggestion';
+    b.textContent = n;
+    b.dataset.name = n;
+    box.appendChild(b);
+  });
+  box.style.display = list.length ? 'flex' : 'none';
 }
 
 // ---------- Annulla ultima azione ----------
@@ -62,7 +138,7 @@ function persistItems(items, actionLabel) {
 // scuotendo il telefono se l'opzione è attiva. Vive solo in memoria: si
 // perde chiudendo e riaprendo l'app, il che va bene perché serve solo a
 // rimediare a uno sbaglio appena fatto.
-let lastUndo = null; // { prevRaw: string|null, label: string }
+let lastUndo = null; // { prevRaw: string|null, prevHistoryRaw: string|null, label: string }
 
 function updateUndoMenuEntry() {
   const btn = document.getElementById('btn-undo');
@@ -83,11 +159,16 @@ function updateUndoMenuEntry() {
 
 function undoLastAction() {
   if (!lastUndo) return;
-  const { prevRaw, label } = lastUndo;
+  const { prevRaw, prevHistoryRaw, label } = lastUndo;
   if (prevRaw === null) {
     localStorage.removeItem(STORAGE_KEY);
   } else {
     localStorage.setItem(STORAGE_KEY, prevRaw);
+  }
+  if (prevHistoryRaw === null) {
+    localStorage.removeItem(NAME_HISTORY_KEY);
+  } else {
+    localStorage.setItem(NAME_HISTORY_KEY, prevHistoryRaw);
   }
   // Si sincronizza lo stato ripristinato, ma non si richiama persistItems()
   // apposta: annullare non deve a sua volta generare una nuova voce
@@ -261,6 +342,7 @@ function toggleFieldsByLoc(locValue) {
 }
 function openAddSheet() {
   document.getElementById('f-name').value = '';
+  renderNameSuggestions(); // nessun suggerimento a campo vuoto
   document.getElementById('f-loc').value = state.loc;
   document.getElementById('f-cat').value = 'Altro';
   document.getElementById('f-qty').value = '1';
@@ -338,6 +420,7 @@ function saveAdd() {
     // duplicato solo per aumentarne la quantità, la nota già presente resta.
     if (notes) existing.notes = notes;
     persistItems(items, `Aggiunto "${name}"`);
+    rememberName(name);
   } else {
     items.push({
       id: uid(),
@@ -350,6 +433,7 @@ function saveAdd() {
       added: Date.now(),
     });
     persistItems(items, `Aggiunto "${name}"`);
+    rememberName(name);
   }
   closeAllSheets();
   render();
@@ -853,7 +937,20 @@ async function syncToGist(items) {
   // scaduto per primo), la stessa logica usata per la lista in Frigo:
   // lo Shortcut delle 10 legge questo JSON così com'è e ne elenca il
   // contenuto nell'ordine in cui lo trova, senza riordinarlo da solo.
-  const sorted = [...items].sort(sortByExpiry);
+  //
+  // In più, per ogni alimento si aggiungono due campi già calcolati qui
+  // (giorniAllaScadenza e scadenzaTesto) con la STESSA logica usata per
+  // mostrare la scadenza nell'app: se lo Shortcut li legge direttamente
+  // invece di fare di nuovo i calcoli sulla data grezza, evita del tutto il
+  // classico problema per cui un Comando Rapido iOS interpreta una data
+  // "AAAA-MM-GG" come mezzanotte UTC e/o calcola i giorni restanti
+  // confrontando con l'ora attuale invece che con l'inizio della giornata,
+  // facendo risultare tutto scaduto un giorno prima del reale.
+  const sorted = [...items].sort(sortByExpiry).map(it => ({
+    ...it,
+    giorniAllaScadenza: daysUntil(it.expiry),
+    scadenzaTesto: expiryLabel(it.expiry),
+  }));
   const content = JSON.stringify(sorted, null, 2);
   const headers = {
     'Authorization': 'Bearer ' + token,
@@ -1157,6 +1254,16 @@ function clearQtyDefaultOnFocus(e) {
   if (e.target.value === '1') e.target.value = '';
 }
 document.getElementById('f-qty').addEventListener('focus', clearQtyDefaultOnFocus);
+
+// Suggerimenti per il nome: si aggiornano mentre si digita, e un tap su un
+// suggerimento compila il campo con il nome completo.
+document.getElementById('f-name').addEventListener('input', renderNameSuggestions);
+document.getElementById('name-suggestions').addEventListener('click', e => {
+  const btn = e.target.closest('button.suggestion');
+  if (!btn) return;
+  document.getElementById('f-name').value = btn.dataset.name;
+  renderNameSuggestions(); // il nome ora è completo: i suggerimenti spariscono
+});
 document.getElementById('qty-input').addEventListener('focus', clearQtyDefaultOnFocus);
 
 // Il campo note, se vuoto, resta vuoto finché non lo si tocca (placeholder
